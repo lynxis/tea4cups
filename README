@@ -69,7 +69,7 @@ Troubleshooting :
   
   2 - Restart CUPS.
   
-  3 - Set "debug: yes" in cupsoftee.conf
+  3 - Set "debug: yes" in the [global] section of cupsoftee.conf
   
   4 - Print something on a print queue managed
       by CupsOfTee.
