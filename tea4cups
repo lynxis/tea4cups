@@ -25,6 +25,7 @@
 import sys
 import os
 import errno
+import md5
 import cStringIO
 import shlex
 import tempfile
@@ -53,8 +54,11 @@ class CupsBackend :
     """Base class for tools with no database access."""
     def __init__(self) :
         """Initializes the CUPS backend wrapper."""
+        self.MyName = "Tea4CUPS"
+        self.myname = "tea4cups"
+        self.pid = os.getpid()
         confdir = os.environ.get("CUPS_SERVERROOT", ".") 
-        self.conffile = os.path.join(confdir, "tea4cups.conf")
+        self.conffile = os.path.join(confdir, "%s.conf" % self.myname)
         if os.path.isfile(self.conffile) :
             self.config = ConfigParser.ConfigParser()
             self.config.read([self.conffile])
@@ -66,12 +70,12 @@ class CupsBackend :
     def logDebug(self, message) :    
         """Logs something to debug output if debug is enabled."""
         if self.debug :
-            sys.stderr.write("DEBUG: %s\n" % message)
+            sys.stderr.write("DEBUG: %s (PID %i) : %s\n" % (self.MyName, self.pid, message))
             sys.stderr.flush()
             
     def logInfo(self, message, level="info") :        
         """Logs a message to CUPS' error_log file."""
-        sys.stderr.write("%s: %s\n" % (level.upper(), message))
+        sys.stderr.write("%s: %s (PID %i) : %s\n" % (level.upper(), self.MyName, self.pid, message))
         sys.stderr.flush()
         
     def isTrue(self, option) :        
@@ -86,12 +90,10 @@ class CupsBackend :
         try :
             return self.config.get("global", option, raw=1)
         except (ConfigParser.NoSectionError, ConfigParser.NoOptionError) :    
-            if ignore :
-                return
-            else :
+            if not ignore :
                 raise ConfigError, "Option %s not found in section global of %s" % (option, self.conffile)
                 
-    def getSectionOption(self, printqueuename, option) :    
+    def getPrintQueueOption(self, printqueuename, option, ignore=0) :    
         """Returns an option from the printer section, or the global section, or raises a ConfigError."""
         globaloption = self.getGlobalOption(option, ignore=1)
         try :
@@ -99,7 +101,7 @@ class CupsBackend :
         except (ConfigParser.NoSectionError, ConfigParser.NoOptionError) :    
             if globaloption is not None :
                 return globaloption
-            else :
+            elif not ignore :
                 raise ConfigError, "Option %s not found in section [%s] of %s" % (option, printqueuename, self.conffile)
                 
     def enumTeeBranches(self, printqueuename) :
@@ -154,7 +156,7 @@ class CupsBackend :
             
         if not os.path.exists(lockfilename) :
             lockfile = open(lockfilename, "w")
-            lockfile.write("%i" % os.getpid())
+            lockfile.write("%i" % self.pid)
             lockfile.close()
             allbackends = [ os.path.join(directory, b) \
                                 for b in os.listdir(directory) 
@@ -193,53 +195,97 @@ class CupsBackend :
                                 name = name[1:-1]
                             if fullname.startswith('"') and fullname.endswith('"') :
                                 fullname = fullname[1:-1]
-                            available.append('%s tea4cups:%s "Tea4CUPS+%s" "Tea4CUPS managed %s"' \
-                                                 % (devicetype, device, name, fullname))
+                            available.append('%s %s:%s "%s+%s" "%s managed %s"' \
+                                                 % (devicetype, self.myname, device, self.MyName, name, self.MyName, fullname))
             os.remove(lockfilename)
         return available
                         
-    def fakePrint(self) :    
-        """Fakes to print the job."""
-        if os.environ.has_key("CUPS_SERVERROOT") and os.path.isdir(os.environ.get("CUPS_SERVERROOT", "")) :
-            # Either the job's datas are on our stdin, or in a file
-            if len(sys.argv) == 7 :
-                self.InputFile = sys.argv[6]
-            else :    
-                self.InputFile = None
-                
-            # check that the DEVICE_URI environment variable's value is 
-            # prefixed with "tea4cups:" otherwise don't touch it.
-            # If this is the case, we have to remove the prefix from 
-            # the environment before launching the real backend in cupspykota
-            device_uri = os.environ.get("DEVICE_URI", "")
-            if device_uri.startswith("cupspykota:") :
-                fulldevice_uri = device_uri[:]
-                device_uri = fulldevice_uri[len("cupspykota:"):]
-                if device_uri.startswith("//") :    # lpd (at least)
-                    device_uri = device_uri[2:]
-                os.environ["DEVICE_URI"] = device_uri   # TODO : side effect !
-            # TODO : check this for more complex urls than ipp://myprinter.dot.com:631/printers/lp
-            try :
-                (backend, destination) = device_uri.split(":", 1) 
-            except ValueError :    
-                raise PyKotaToolError, "Invalid DEVICE_URI : %s\n" % device_uri
-            while destination.startswith("/") :
-                destination = destination[1:]
-            checkauth = destination.split("@", 1)    
-            if len(checkauth) == 2 :
-                destination = checkauth[1]
-            printerhostname = destination.split("/")[0].split(":")[0]
-            return ("CUPS", \
-                    printerhostname, \
-                    os.environ.get("PRINTER"), \
-                    sys.argv[2].strip(), \
-                    sys.argv[1].strip(), \
-                    inputfile, \
-                    int(sys.argv[4].strip()), \
-                    sys.argv[3], \
-                    sys.argv[5], \
-                    backend)
+    def initBackend(self) :    
+        """Initializes the backend's attributes."""
+        # check that the DEVICE_URI environment variable's value is 
+        # prefixed with self.myname otherwise don't touch it.
+        # If this is the case, we have to remove the prefix from 
+        # the environment before launching the real backend 
+        muststartwith = "%s:" % self.myname
+        device_uri = os.environ.get("DEVICE_URI", "")
+        if device_uri.startswith(muststartwith) :
+            fulldevice_uri = device_uri[:]
+            device_uri = fulldevice_uri[len(muststartwith):]
+            if device_uri.startswith("//") :  
+                device_uri = device_uri[2:]
+        try :
+            (backend, destination) = device_uri.split(":", 1) 
+        except ValueError :    
+            raise TeeError, "Invalid DEVICE_URI : %s\n" % device_uri
+        
+        self.JobId = sys.argv[1].strip()
+        self.UserName = sys.argv[2].strip()
+        self.Title = sys.argv[3].strip()
+        self.Copies = int(sys.argv[4].strip())
+        self.Options = sys.argv[5].strip()
+        if len(sys.argv) == 7 :
+            self.InputFile = sys.argv[6] # read job's datas from file
+        else :    
+            self.InputFile = None        # read job's datas from stdin
+            
+        self.RealBackend = backend
+        self.DeviceURI = device_uri
+        self.PrinterName = os.environ.get("PRINTER", "")
+        self.Directory = self.getPrintQueueOption(self.PrinterName, "directory")
+        self.DataFile = os.path.join(self.Directory, "%s-%s-%s" % (self.myname, self.PrinterName, self.JobId))
+            
+    def exportAttributes(self) :    
+        """Exports our backend's attributes to the environment."""
+        os.environ["DEVICE_URI"] = self.DeviceURI       # WARNING !
+        os.environ["TEAPRINTERNAME"] = self.PrinterName
+        os.environ["TEADIRECTORY"] = self.Directory
+        os.environ["TEADATAFILE"] = self.DataFile
+        os.environ["TEAJOBSIZE"] = self.JobSize
+        os.environ["TEAMD5SUM"] = self.JobMD5Sum
+        os.environ["TEAJOBID"] = self.JobId
+        os.environ["TEAUSERNAME"] = self.UserName
+        os.environ["TEATITLE"] = self.Title
+        os.environ["TEACOPIES"] = str(self.Copies)
+        os.environ["TEAOPTIONS"] = self.Options
+        os.environ["TEAINPUTFILE"] = self.InputFile or ""
+        
+    def saveDatasAndCheckSum(self) :
+        """Saves the input datas into a static file."""
+        self.logDebug("Duplicating data stream to %s" % self.DataFile)
+        mustclose = 0
+        if self.InputFile is not None :
+            infile = open(self.InputFile, "rb")
+            mustclose = 1
+        else :    
+            infile = sys.stdin
+        CHUNK = 64*1024         # read 64 Kb at a time
+        dummy = 0
+        sizeread = 0
+        checksum = md5.new()
+        outfile = open(self.DataFile, "wb")    
+        while 1 :
+            data = infile.read(CHUNK) 
+            if not data :
+                break
+            sizeread += len(data)    
+            outfile.write(data)
+            checksum.update(data)    
+            if not (dummy % 32) : # Only display every 2 Mb
+                self.logDebug("%s bytes saved..." % sizeread)
+            dummy += 1    
+        outfile.close()
+        if mustclose :    
+            self.infile.close()
+        self.JobSize = sizeread    
+        self.JobMD5Sum = checksum.hexdigest()
+        self.logDebug("Job %s is %s bytes long." % (self.JobId, self.JobSize))
+        self.logDebug("Job %s MD5 sum is %s" % (self.JobId, self.JobMD5Sum))
 
+    def cleanUp(self) :
+        """Cleans up the place."""
+        if not self.isTrue(self.getPrintQueueOption(self.PrinterName, "keepfiles", ignore=1)) :
+            os.remove(self.DataFile)
+        
 if __name__ == "__main__" :    
     # This is a CUPS backend, we should act and die like a CUPS backend
     wrapper = CupsBackend()
@@ -251,5 +297,9 @@ if __name__ == "__main__" :
                               % sys.argv[0])
         sys.exit(1)
     else :    
+        wrapper.initBackend()
+        wrapper.saveDatasAndCheckSum()
+        wrapper.exportAttributes()
+        wrapper.cleanUp()
         sys.stderr.write("ERROR: Not Yet !\n")
         sys.exit(1)
