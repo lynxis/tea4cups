@@ -447,7 +447,7 @@ class CupsBackend :
         return dirvalues       
             
     def parseIPPMessageFile(self) :        
-        """Extracts the client's hostname or IP address from the CUPS message file for current job."""
+        """Parses the IPP message file and returns a tuple (filename, parsedvalue)."""
         cupsdconf = self.getCupsConfigDirectives(["RequestRoot"])
         requestroot = cupsdconf.get("requestroot", "/var/spool/cups")
         if (len(self.JobId) < 5) and self.JobId.isdigit() :
