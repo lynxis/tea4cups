@@ -375,7 +375,6 @@ class CupsBackend :
             os.remove(lockfilename)
         available.append('direct %s:// "%s+Nothing" "%s managed Virtual Printer"' \
                              % (self.myname, self.MyName, self.MyName))
-        available.sort()                      
         return available
                         
     def initBackend(self) :    
@@ -396,7 +395,7 @@ class CupsBackend :
             (backend, destination) = device_uri.split(":", 1) 
         except ValueError :    
             if not device_uri :
-                self.logInfo("Not attached to an existing print queue.")
+                self.logDebug("Not attached to an existing print queue.")
                 backend = ""
             else :    
                 raise TeeError, "Invalid DEVICE_URI : %s\n" % device_uri
@@ -539,6 +538,10 @@ class CupsBackend :
             if status :
                 exitcode = status
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        if not exitcode :
+            self.logInfo("OK")
+        else :    
+            self.logInfo("An error occured, please check CUPS' error_log file.")
         return exitcode
         
     def runCommands(self, btype, branches, serialize) :    
@@ -549,7 +552,7 @@ class CupsBackend :
         branchlist = branches.keys()    
         branchlist.sort()
         if serialize :
-            self.logDebug("Serialized %ss" % btypetitle)
+            self.logDebug("Begin serialized %ss" % btypetitle)
             if (btype == "tee") and self.RealBackend :
                 self.logDebug("Launching original backend %s for printer %s" % (self.RealBackend, self.PrinterName))
                 exitcode = self.runOriginalBackend()
@@ -565,8 +568,9 @@ class CupsBackend :
                 if retcode :    
                     self.logInfo("%s %s on printer %s didn't exit successfully." % (btypetitle, branch, self.PrinterName), "error")
                     exitcode = 1
+            self.logDebug("End serialized %ss" % btypetitle)
         else :        
-            self.logDebug("Forked %ss" % btypetitle)
+            self.logDebug("Begin forked %ss" % btypetitle)
             pids = {}
             if (btype == "tee") and self.RealBackend :
                 branches["Original backend"] = None     # Fakes a tee to launch one more child
@@ -600,6 +604,7 @@ class CupsBackend :
                     exitcode = 1
                 if branch == "Original backend" :    
                     os.environ["TEASTATUS"] = str(retcode)
+            self.logDebug("End forked %ss" % btypetitle)
         return exitcode
         
     def unregisterFileNo(self, pollobj, fileno) :                
