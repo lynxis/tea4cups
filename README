@@ -1,6 +1,6 @@
 # $Id$
 
-CupsOfTee : Tee for CUPS
+Tea4CUPS : Tee for CUPS
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -18,10 +18,10 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307, USA.
 
 =============================================================================
 
-CupsOfTee is the equivalent of the *nix command 'tee', but as a CUPS
+Tea4CUPS is the equivalent of the *nix command 'tee', but as a CUPS
 backend.
 
-CupsOfTee behaves just like any other CUPS backend, but allows you to
+Tea4CUPS behaves just like any other CUPS backend, but allows you to
 transparently send print jobs' datas to any number of outputs : other
 CUPS backends, files or pipes.
 
@@ -37,25 +37,25 @@ message, all of this by printing it a single time.
 Installation :
 --------------
 
-  1 - Copy the 'cupsoftee' command into CUPS' backend directory, 
+  1 - Copy the 'tea4cups' command into CUPS' backend directory, 
       for example :
       
-        $ cp cupsoftee /usr/lib/cups/backend
+        $ cp tea4cups /usr/lib/cups/backend
         
   2 - Restart CUPS in order for this new backend to be detected.        
   
   3 - Either from CUPS' web interface, add new printers with 
-      'CupsOfTee managed' in front of the device's name.
+      'Tea4CUPS managed' in front of the device's name.
           
       Or by directly modifying CUPS' printers.conf file, prepend    
-      each DeviceURI value with 'cupsoftee://', and restart CUPS.
+      each DeviceURI value with 'tea4cups://', and restart CUPS.
       
-  4 - Copy cupsoftee.conf into CUPS' configuration directory (where    
+  4 - Copy tea4cups.conf into CUPS' configuration directory (where    
       cupsd.conf resides) :
       
-        $ cp cupsoftee.conf /etc/cups/
+        $ cp tea4cups.conf /etc/cups/
         
-  5 - Modify cupsoftee.conf to suit your needs. Several examples      
+  5 - Modify tea4cups.conf to suit your needs. Several examples      
       are included.
       
   6 - There's no 6 !    
@@ -69,10 +69,10 @@ Troubleshooting :
   
   2 - Restart CUPS.
   
-  3 - Set "debug: yes" in the [global] section of cupsoftee.conf
+  3 - Set "debug: yes" in the [global] section of tea4cups.conf
   
   4 - Print something on a print queue managed
-      by CupsOfTee.
+      by Tea4CUPS.
       
   5 - Look at CUPS' error_log file for diagnostic and error messages.
   

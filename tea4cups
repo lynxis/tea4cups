@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 # -*- coding: ISO-8859-15 -*-
 
-# CupsOfTee : Tee for CUPS
+# Tea4CUPS : Tee for CUPS
 #
 # (c) 2005 Jerome Alet <alet@librelogiciel.com>
 # This program is free software; you can redistribute it and/or modify
@@ -31,7 +31,7 @@ import tempfile
 import ConfigParser
 
 class TeeError(Exception):
-    """Base exception for CupsOfTee related stuff."""
+    """Base exception for Tea4CUPS related stuff."""
     def __init__(self, message = ""):
         self.message = message
         Exception.__init__(self, message)
@@ -54,7 +54,7 @@ class CupsBackend :
     def __init__(self) :
         """Initializes the CUPS backend wrapper."""
         confdir = os.environ.get("CUPS_SERVERROOT", ".") 
-        self.conffile = os.path.join(confdir, "cupsoftee.conf")
+        self.conffile = os.path.join(confdir, "tea4cups.conf")
         if os.path.isfile(self.conffile) :
             self.config = ConfigParser.ConfigParser()
             self.config.read([self.conffile])
@@ -193,7 +193,7 @@ class CupsBackend :
                                 name = name[1:-1]
                             if fullname.startswith('"') and fullname.endswith('"') :
                                 fullname = fullname[1:-1]
-                            available.append('%s cupsoftee:%s "CupsOfTee+%s" "CupsOfTee managed %s"' \
+                            available.append('%s tea4cups:%s "Tea4CUPS+%s" "Tea4CUPS managed %s"' \
                                                  % (devicetype, device, name, fullname))
             os.remove(lockfilename)
         return available
@@ -208,7 +208,7 @@ class CupsBackend :
                 self.InputFile = None
                 
             # check that the DEVICE_URI environment variable's value is 
-            # prefixed with "cupsoftee:" otherwise don't touch it.
+            # prefixed with "tea4cups:" otherwise don't touch it.
             # If this is the case, we have to remove the prefix from 
             # the environment before launching the real backend in cupspykota
             device_uri = os.environ.get("DEVICE_URI", "")
