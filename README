@@ -50,7 +50,7 @@ Tea4CUPS provides three ways to launch commands :
                       prehook.
                  
 To help your own commands, Tea4CUPS makes available as part of the
-environment several variables which can be used as part of the
+environment several variables which can be used from the
 commands you use :
 
         TEAPRINTERNAME : The print queue name.
