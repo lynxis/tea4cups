@@ -36,7 +36,7 @@ import signal
 import time
 from struct import unpack
 
-version = "2.00"
+version = "2.00alpha1_unofficial"
 
 class TeeError(Exception):
     """Base exception for Tea4CUPS related stuff."""
