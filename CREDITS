@@ -17,21 +17,25 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307, USA.
 
-=============================================================================
+============================================================
 
-Tea4CUPS News :
-   
-  * 2.00 :
+Supporters :
+------------
 
-    - Introduces the notions of pre and post hooks.
-    
-    - Prehooks can decide to entirely cancel the print job if needed.
+  The following people supports the Tea4CUPS project enhancement
+  by funding it :
+  
+  - Anwar Bashir - University of Teesside
 
-    - Original CUPS backend's exit code is available in posthooks.
+==============================================================
 
-    - prehooks, posthooks and tees are now launched in alphabetical order.
-
-  * 1.00 :
-
-    - First Official release.
-
+  IF YOUR NAME DOESN'T APPEAR IN THE LISTS ABOVE, AND YOU
+  THINK YOU DESERVE TO BE LISTED, JUST SEND ME AN EMAIL
+  ASKING FOR BEING INCLUDED.
+  
+  I APOLOGIZE IN ADVANCE IF I'VE FORGOTTEN TO ADD YOUR NAME.
+  
+  ALSO, SOME PEOPLE MAY HAVE REFUSED TO BE LISTED HERE, THIS 
+  IS YOUR RIGHT TO DO SO TOO, JUST TELL ME.
+  
+==============================================================
