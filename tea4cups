@@ -109,12 +109,11 @@ class CupsBackend :
         try :
             globalbranches = [ (k, v) for (k, v) in self.config.items("global") if k.startswith("tee_") ]
         except ConfigParser.NoSectionError, msg :    
-            self.printInfo("Invalid configuration file : %s" % msg, "error")
-            globalbranches = []
+            raise ConfigError, "Invalid configuration file : %s" % msg
         try :
             sectionbranches = [ (k, v) for (k, v) in self.config.items(printqueuename) if k.startswith("tee_") ]
         except ConfigParser.NoSectionError, msg :    
-            self.printInfo("Invalid configuration file : %s" % msg, "error")
+            self.logInfo("No section for print queue %s : " % (printqueuename, msg), "info")
             sectionbranches = []
         branches = {}
         for (k, v) in globalbranches :
@@ -240,7 +239,7 @@ class CupsBackend :
         os.environ["TEAPRINTERNAME"] = self.PrinterName
         os.environ["TEADIRECTORY"] = self.Directory
         os.environ["TEADATAFILE"] = self.DataFile
-        os.environ["TEAJOBSIZE"] = self.JobSize
+        os.environ["TEAJOBSIZE"] = str(self.JobSize)
         os.environ["TEAMD5SUM"] = self.JobMD5Sum
         os.environ["TEAJOBID"] = self.JobId
         os.environ["TEAUSERNAME"] = self.UserName
@@ -275,7 +274,7 @@ class CupsBackend :
             dummy += 1    
         outfile.close()
         if mustclose :    
-            self.infile.close()
+            infile.close()
         self.JobSize = sizeread    
         self.JobMD5Sum = checksum.hexdigest()
         self.logDebug("Job %s is %s bytes long." % (self.JobId, self.JobSize))
@@ -285,6 +284,13 @@ class CupsBackend :
         """Cleans up the place."""
         if not self.isTrue(self.getPrintQueueOption(self.PrinterName, "keepfiles", ignore=1)) :
             os.remove(self.DataFile)
+            
+    def runBranches(self) :         
+        """Launches each tee defined for the current print queue."""
+        branches = self.enumTeeBranches(self.PrinterName)
+        for (branch, command) in branches.items() :
+            self.logDebug("Launching %s : %s" % (branch, command))
+            os.system(command)
         
 if __name__ == "__main__" :    
     # This is a CUPS backend, we should act and die like a CUPS backend
@@ -300,6 +306,6 @@ if __name__ == "__main__" :
         wrapper.initBackend()
         wrapper.saveDatasAndCheckSum()
         wrapper.exportAttributes()
+        retcode = wrapper.runBranches()
         wrapper.cleanUp()
-        sys.stderr.write("ERROR: Not Yet !\n")
-        sys.exit(1)
+        sys.exit(retcode)
