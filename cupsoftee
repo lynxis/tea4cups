@@ -58,7 +58,7 @@ class CupsBackend :
         if os.path.isfile(self.conffile) :
             self.config = ConfigParser.ConfigParser()
             self.config.read([self.conffile])
-            self.debug = self.isTrue(getGlobalOption("debug", ignore=1))
+            self.debug = self.isTrue(self.getGlobalOption("debug", ignore=1))
         else :    
             self.config = FakeConfig()
             self.debug = 1      # no config, so force debug mode !
@@ -91,9 +91,30 @@ class CupsBackend :
             else :
                 raise ConfigError, "Option %s not found in section [%s] of %s" % (option, sectionname, self.conffile)
                 
-    def getSectionNames(self) :    
-        """Returns the list of sections, i.e. all sections names minus 'global'."""
-        return [pname for pname in self.config.sections() if pname != "global"]
+    def enumTeeBranches(self, sectionname) :
+        """Returns the list of branches for a particular section's Tee."""
+        try :
+            globalbranches = [ (k, v) for (k, v) in self.config.items("global") if k.startswith("tee_") ]
+        except ConfigParser.NoSectionError, msg :    
+            self.printInfo("Invalid configuration file : %s" % msg, "error")
+            globalbranches = []
+        try :
+            sectionbranches = [ (k, v) for (k, v) in self.config.items(sectionname) if k.startswith("tee_") ]
+        except ConfigParser.NoSectionError, msg :    
+            self.printInfo("Invalid configuration file : %s" % msg, "error")
+            sectionbranches = []
+        branches = {}
+        for (k, v) in globalbranches :
+            value = v.strip()
+            if value :
+                branches[k] = value
+        for (k, v) in sectionbranches :    
+            value = v.strip()
+            if value :
+                branches[k] = value # overwrite any global option or set a new value
+            else :    
+                del branches[k] # empty value disables a global option
+        return branches
         
     def discoverOtherBackends(self) :    
         """Discovers the other CUPS backends.
