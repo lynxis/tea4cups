@@ -32,12 +32,6 @@ import tempfile
 import ConfigParser
 from struct import unpack
 
-OPERATION_ATTRIBUTES_TAG = 0x01
-JOB_ATTRIBUTES_TAG = 0x02
-END_OF_ATTRIBUTES_TAG = 0x03
-PRINTER_ATTRIBUTES_TAG = 0x04
-UNSUPPORTED_ATTRIBUTES_TAG = 0x05
-
 class TeeError(Exception):
     """Base exception for Tea4CUPS related stuff."""
     def __init__(self, message = ""):
@@ -55,6 +49,13 @@ class IPPError(TeeError) :
     """IPP related exceptions."""
     pass 
     
+# Some IPP constants    
+OPERATION_ATTRIBUTES_TAG = 0x01
+JOB_ATTRIBUTES_TAG = 0x02
+END_OF_ATTRIBUTES_TAG = 0x03
+PRINTER_ATTRIBUTES_TAG = 0x04
+UNSUPPORTED_ATTRIBUTES_TAG = 0x05
+
 class IPPMessage :
     """A class for IPP message files."""
     def __init__(self, data) :
@@ -371,7 +372,32 @@ class CupsBackend :
         self.PrinterName = os.environ.get("PRINTER", "")
         self.Directory = self.getPrintQueueOption(self.PrinterName, "directory")
         self.DataFile = os.path.join(self.Directory, "%s-%s-%s-%s" % (self.myname, self.PrinterName, self.UserName, self.JobId))
+        self.ClientHost = self.extractJobOriginatingHostName()
             
+    def extractJobOriginatingHostName(self) :        
+        """Extracts the client's hostname or IP address from the CUPS message file for current job."""
+        requestroot = cupsdconf.get("requestroot", "/var/spool/cups")
+        if (len(self.JobId) < 5) and self.JobId.isdigit() :
+            ippmessagefile = "c%05i" % int(self.JobId)
+        else :    
+            ippmessagefile = "c%s" % self.JobId
+        ippmessagefile = os.path.join(requestroot, ippmessagefile)
+        ippmessage = {}
+        try :
+            ippdatafile = open(ippmessagefile)
+        except :    
+            self.logInfo("Unable to open IPP message file %s" % ippmessagefile, "warn")
+        else :    
+            self.logDebug("Parsing of IPP message file %s begins." % ippmessagefile)
+            try :
+                ippmessage = IPPMessage(ippdatafile.read())
+            except IPPError, msg :    
+                self.logInfo("Error while parsing %s : %s" % (ippmessagefile, msg), "warn")
+            else :    
+                self.logDebug("Parsing of IPP message file %s ends." % ippmessagefile)
+            ippdatafile.close()
+        return ippmessage.get("job-originating-host-name")    
+                
     def exportAttributes(self) :    
         """Exports our backend's attributes to the environment."""
         os.environ["DEVICE_URI"] = self.DeviceURI       # WARNING !
@@ -380,6 +406,7 @@ class CupsBackend :
         os.environ["TEADATAFILE"] = self.DataFile
         os.environ["TEAJOBSIZE"] = str(self.JobSize)
         os.environ["TEAMD5SUM"] = self.JobMD5Sum
+        os.environ["TEACLIENTHOST"] = self.ClientHost or ""
         os.environ["TEAJOBID"] = self.JobId
         os.environ["TEAUSERNAME"] = self.UserName
         os.environ["TEATITLE"] = self.Title
