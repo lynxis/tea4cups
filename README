@@ -32,6 +32,23 @@ Another possibility would be for example to send the same document to
 a printer, a PDF generator, a Fax, and as an attachment to an email
 message, all of this by printing it a single time.
 
+To help your own commands, Tea4CUPS makes available as part of the
+environment several variables which can be used as part of the
+commands you use :
+
+        TEAPRINTERNAME : The print queue name.
+        TEADIRECTORY : Tea4CUPS output directory.
+        TEADATAFILE : Full name of Tea4CUPS work file (in $TEADIRECTORY).
+        TEAJOBSIZE : Job's size in bytes.
+        TEAMD5SUM : MD5 sum of the job's datas.
+        TEACLIENTHOST : Client's hostname or IP address.
+        TEAJOBID : Job's Id.
+        TEAUSERNAME : Name of the user who launched the print job.
+        TEATITLE : Job's title.
+        TEACOPIES : Number of copies requested.
+        TEAOPTIONS : Options of the print job.
+        TEAINPUTFILE : Print job's data file or empty when job read from stdin.
+        
 =============================================================================
 
 Installation :
