@@ -526,34 +526,50 @@ class CupsBackend :
         self.logInfo("SIGTERM received for Job %s." % self.JobId)
         
     def runBranches(self) :         
-        """Launches each tee defined for the current print queue."""
+        """Launches each hook or tee defined for the current print queue."""
         exitcode = 0
         signal.signal(signal.SIGTERM, self.sigtermHandler)
-        prehooks = self.enumBranches(self.PrinterName, "prehook")
-        branches = self.enumBranches(self.PrinterName, "tee")
-        prehooks = self.enumBranches(self.PrinterName, "posthook")
-        if self.isTrue(self.getPrintQueueOption(self.PrinterName, "serialize", ignore=1)) :
-            self.logDebug("Serialized Tees")
-            if self.RealBackend :
+        serialize = self.isTrue(self.getPrintQueueOption(self.PrinterName, "serialize", ignore=1))
+        for branchtype in ["prehook", "tee", "posthook"] :
+            branches = self.enumBranches(self.PrinterName, branchtype)
+            status = self.runCommands(branchtype, branches, serialize)
+            if status :
+                exitcode = status
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        return exitcode
+        
+    def runCommands(self, btype, branches, serialize) :    
+        """Runs the commands for a particular branch type."""
+        exitcode = 0 
+        btype = btype.lower()
+        btypetitle = btype.title()
+        branchlist = branches.keys()    
+        branchlist.sort()
+        if serialize :
+            self.logDebug("Serialized %ss" % btypetitle)
+            if (btype == "tee") and self.RealBackend :
                 self.logDebug("Launching original backend %s for printer %s" % (self.RealBackend, self.PrinterName))
                 exitcode = self.runOriginalBackend()
-            for (branch, command) in branches.items() :
+            for branch in branchlist :
+                command = branches[branch]
                 if self.gotSigTerm :
                     break
                 self.logDebug("Launching %s : %s" % (branch, command))
                 retcode = os.system(command)
-                self.logDebug("Exit code for tee %s on printer %s is %s" % (branch, self.PrinterName, retcode))
+                self.logDebug("Exit code for %s %s on printer %s is %s" % (btype, branch, self.PrinterName, retcode))
                 if os.WIFEXITED(retcode) :
                     retcode = os.WEXITSTATUS(retcode)
                 if retcode :    
-                    self.logInfo("Tee %s on printer %s didn't exit successfully." % (branch, self.PrinterName), "error")
+                    self.logInfo("%s %s on printer %s didn't exit successfully." % (btypetitle, branch, self.PrinterName), "error")
                     exitcode = 1
         else :        
-            self.logDebug("Forked Tees")
+            self.logDebug("Forked %ss" % btypetitle)
             pids = {}
-            if self.RealBackend :
+            if (btype == "tee") and self.RealBackend :
                 branches["Original backend"] = None     # Fakes a tee to launch one more child
-            for (branch, command) in branches.items() :
+                branchlist = ["Original backend"] + branchlist
+            for branch in branchlist :
+                command = branches[branch]
                 if self.gotSigTerm :
                     break
                 pid = os.fork()
@@ -573,13 +589,14 @@ class CupsBackend :
                         sys.exit(retcode)
             for (branch, pid) in pids.items() :
                 (childpid, retcode) = os.waitpid(pid, 0)
-                self.logDebug("Exit code for tee %s (PID %s) on printer %s is %s" % (branch, childpid, self.PrinterName, retcode))
+                self.logDebug("Exit code for %s %s (PID %s) on printer %s is %s" % (btype, branch, childpid, self.PrinterName, retcode))
                 if os.WIFEXITED(retcode) :
                     retcode = os.WEXITSTATUS(retcode)
                 if retcode :    
-                    self.logInfo("Tee %s (PID %s) on printer %s didn't exit successfully." % (branch, childpid, self.PrinterName), "error")
+                    self.logInfo("%s %s (PID %s) on printer %s didn't exit successfully." % (btypetitle, branch, childpid, self.PrinterName), "error")
                     exitcode = 1
-        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+                if branch == "Original backend" :    
+                    os.environ["TEASTATUS"] = str(retcode)
         return exitcode
         
     def unregisterFileNo(self, pollobj, fileno) :                

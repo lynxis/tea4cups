@@ -32,6 +32,17 @@ Another possibility would be for example to send the same document to
 a printer, a PDF generator, a Fax, and as an attachment to an email
 message, all of this by printing it a single time.
 
+Tea4CUPS provides three ways to launch commands :
+
+        - prehooks : these are guaranteed to be launched before the 
+                     print job is sent to the real printer.
+                     
+        - tees : these are launched at the same time the job is being             
+                 sent to the real printer.
+                 
+        - posthooks : these are guaranteed to be launched after the
+                      print job has been sent to the real printer.
+                 
 To help your own commands, Tea4CUPS makes available as part of the
 environment several variables which can be used as part of the
 commands you use :
@@ -48,6 +59,8 @@ commands you use :
         TEACOPIES : Number of copies requested.
         TEAOPTIONS : Options of the print job.
         TEAINPUTFILE : Print job's data file or empty when job read from stdin.
+        TEASTATUS : Original CUPS backend's exit code : ONLY AVAILABLE FROM 
+                    post hooks, obviously.
         
 In the case you want to use both Tea4CUPS and PyKota, you MUST install 
 PyKota v1.22alpha2 or higher to avoid a race condition.
