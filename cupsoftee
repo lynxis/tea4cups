@@ -28,12 +28,68 @@ import errno
 import cStringIO
 import shlex
 import tempfile
+import ConfigParser
 
+class TeeError(Exception):
+    """Base exception for CupsOfTee related stuff."""
+    def __init__(self, message = ""):
+        self.message = message
+        Exception.__init__(self, message)
+    def __repr__(self):
+        return self.message
+    __str__ = __repr__
+    
+class ConfigError(TeeError) :    
+    """Configuration related exceptions."""
+    pass 
+    
+class FakeConfig :    
+    """Fakes a configuration file parser."""
+    def get(self, section, option, raw=0) :
+        """Fakes the retrieval of a global option."""
+        raise ConfigError, "Invalid configuration file : no option %s in section [%s]" % (option, section)
+        
 class CupsBackend :
     """Base class for tools with no database access."""
     def __init__(self) :
         """Initializes the CUPS backend wrapper."""
-        self.debug = 1
+        confdir = os.environ.get("CUPS_SERVERROOT", ".") 
+        self.conffile = os.path.join(confdir, "cupsoftee.conf")
+        if os.path.isfile(self.conffile) :
+            self.config = ConfigParser.ConfigParser()
+            self.config.read([self.conffile])
+            self.debug = self.isTrue(getGlobalOption("debug", ignore=1))
+        else :    
+            self.config = FakeConfig()
+            self.debug = 1      # no config, so force debug mode !
+            
+    def isTrue(self, option) :        
+        """Returns 1 if option is set to true, else 0."""
+        if (option is not None) and (option.upper().strip() in ['Y', 'YES', '1', 'ON', 'T', 'TRUE']) :
+            return 1
+        else :    
+            return 0
+                        
+    def getGlobalOption(self, option, ignore=0) :    
+        """Returns an option from the global section, or raises a ConfigError if ignore is not set, else returns None."""
+        try :
+            return self.config.get("global", option, raw=1)
+        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError) :    
+            if ignore :
+                return
+            else :
+                raise ConfigError, "Option %s not found in section global of %s" % (option, self.conffile)
+                
+    def getPrinterOption(self, sectionname, option) :    
+        """Returns an option from the printer section, or the global section, or raises a ConfigError."""
+        globaloption = self.getGlobalOption(option, ignore=1)
+        try :
+            return self.config.get(sectionname, option, raw=1)
+        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError) :    
+            if globaloption is not None :
+                return globaloption
+            else :
+                raise ConfigError, "Option %s not found in section [%s] of %s" % (option, sectionname, self.conffile)
         
     def discoverOtherBackends(self) :    
         """Discovers the other CUPS backends.
