@@ -31,6 +31,7 @@ import cStringIO
 import shlex
 import tempfile
 import ConfigParser
+import threading
 from struct import unpack
 
 version = "0.99"
@@ -517,6 +518,9 @@ class CupsBackend :
         branches = self.enumTeeBranches(self.PrinterName)
         if self.isTrue(self.getPrintQueueOption(self.PrinterName, "serialize", ignore=1)) :
             self.logDebug("Serialized Tees")
+            if self.RealBackend :
+                self.logDebug("Launching original backend %s for printer %s" % (self.RealBackend, self.PrinterName))
+                exitcode = self.runOriginalBackend()
             for (branch, command) in branches.items() :
                 self.logDebug("Launching %s : %s" % (branch, command))
                 retcode = os.system(command)
@@ -529,18 +533,24 @@ class CupsBackend :
         else :        
             self.logDebug("Forked Tees")
             pids = {}
+            if self.RealBackend :
+                branches["Original backend"] = None     # Fakes a tee to launch one more child
             for (branch, command) in branches.items() :
                 pid = os.fork()
                 if pid :
                     pids[branch] = pid
                 else :    
-                    self.logDebug("Launching %s : %s" % (branch, command))
-                    retcode = os.system(command)
-                    if os.WIFEXITED(retcode) :
-                        retcode = os.WEXITSTATUS(retcode)
-                    else :    
-                        retcode = -1
-                    sys.exit(retcode)
+                    if branch == "Original backend" :
+                        self.logDebug("Launching original backend %s for printer %s" % (self.RealBackend, self.PrinterName))
+                        sys.exit(self.runOriginalBackend())
+                    else :
+                        self.logDebug("Launching %s : %s" % (branch, command))
+                        retcode = os.system(command)
+                        if os.WIFEXITED(retcode) :
+                            retcode = os.WEXITSTATUS(retcode)
+                        else :    
+                            retcode = -1
+                        sys.exit(retcode)
             for (branch, pid) in pids.items() :
                 (childpid, retcode) = os.waitpid(pid, 0)
                 self.logDebug("Exit code for tee %s (PID %s) on printer %s is %s" % (branch, childpid, self.PrinterName, retcode))
@@ -550,6 +560,70 @@ class CupsBackend :
                     self.logInfo("Tee %s (PID %s) on printer %s didn't exit successfully." % (branch, childpid, self.PrinterName), "error")
                     exitcode = 1
         return exitcode
+        
+    def runOriginalBackend(self) :    
+        """Launches the original backend."""
+        originalbackend = os.path.join(os.path.split(sys.argv[0])[0], self.RealBackend)
+        arguments = sys.argv
+        self.logDebug("Starting original backend %s with args %s" % (originalbackend, " ".join(['"%s"' % a for a in ([os.environ["DEVICE_URI"]] + arguments[1:])])))
+        subprocess = Popen4ForCUPS([originalbackend] + arguments[1:], bufsize=0, arg0=os.environ["DEVICE_URI"])
+        rendezvous = threading.Event()
+        if self.InputFile is None :
+           self.logDebug("Launching data thread.")
+           infile = open(self.DataFile, "rb")
+           iothread = threading.Thread(target = self.handleOriginalBackendIO, kwargs = { "parent" : threading.currentThread(), "event" : rendezvous, "inf": infile, "outf" : subprocess.tochild})
+           iothread.start()
+           
+        # here we only want to read its output and send it on our stderr
+        while (self.InputFile is not None) or iothread.isAlive() : # until all data transmitted to original backend
+            data = subprocess.fromchild.readline()
+            if (not data) or rendezvous.isSet() :
+                break
+            sys.stderr.write(data)    
+            sys.stderr.flush()
+            
+        if not rendezvous.isSet() :    
+            rendezvous.set()    
+        if self.InputFile is None :
+            infile.close()
+            iothread.join()
+        subprocess.fromchild.close()
+        subprocess.tochild.close()
+        status = subprocess.wait()
+        if os.WIFEXITED(status) :
+            return os.WEXITSTATUS(status)
+        else :    
+            return 1
+        
+    def handleOriginalBackendIO(self, parent, event, inf, outf) :    
+        """Thread to handles the original backend's I/O."""
+        dummy = 0
+        totalsent = 0
+        while 1 :
+            if not parent.isAlive() :
+                self.logInfo("Parent died unexpectedly.", level = "warn")
+                break
+            if event.isSet() :    
+                self.logInfo("Parent said work is finished.")
+                break
+            try :    
+                data = inf.readline()
+                if not data :
+                    break
+                outf.write(data)    
+                totalsent += len(data)
+                dummy += 1
+                if not (dummy % 10) :
+                    self.logDebug("Sent %i bytes to original backend." % totalsent)
+                try :
+                    outf.flush()
+                except :    
+                    pass
+            except IOError, msg :
+                self.logInfo("I/O Error : %s" % msg, level = "warn")
+                break
+        event.set()        
+        sys.exit(0)
         
 if __name__ == "__main__" :    
     # This is a CUPS backend, we should act and die like a CUPS backend
