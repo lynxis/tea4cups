@@ -36,7 +36,7 @@ import signal
 import time
 from struct import unpack
 
-version = "1.00"
+version = "1.5alpha"
 
 class TeeError(Exception):
     """Base exception for Tea4CUPS related stuff."""
@@ -277,14 +277,15 @@ class CupsBackend :
             elif not ignore :
                 raise ConfigError, "Option %s not found in section [%s] of %s" % (option, printqueuename, self.conffile)
                 
-    def enumTeeBranches(self, printqueuename) :
-        """Returns the list of branches for a particular section's Tee."""
+    def enumBranches(self, printqueuename, branchtype="tee") :
+        """Returns the list of branchtypes branches for a particular section's."""
+        branchbasename = "%s_" % branchtype.lower()
         try :
-            globalbranches = [ (k, v) for (k, v) in self.config.items("global") if k.startswith("tee_") ]
+            globalbranches = [ (k, v) for (k, v) in self.config.items("global") if k.startswith(branchbasename) ]
         except ConfigParser.NoSectionError, msg :    
             raise ConfigError, "Invalid configuration file : %s" % msg
         try :
-            sectionbranches = [ (k, v) for (k, v) in self.config.items(printqueuename) if k.startswith("tee_") ]
+            sectionbranches = [ (k, v) for (k, v) in self.config.items(printqueuename) if k.startswith(branchbasename) ]
         except ConfigParser.NoSectionError, msg :    
             self.logInfo("No section for print queue %s : %s" % (printqueuename, msg))
             sectionbranches = []
@@ -528,7 +529,9 @@ class CupsBackend :
         """Launches each tee defined for the current print queue."""
         exitcode = 0
         signal.signal(signal.SIGTERM, self.sigtermHandler)
-        branches = self.enumTeeBranches(self.PrinterName)
+        prehooks = self.enumBranches(self.PrinterName, "prehook")
+        branches = self.enumBranches(self.PrinterName, "tee")
+        prehooks = self.enumBranches(self.PrinterName, "posthook")
         if self.isTrue(self.getPrintQueueOption(self.PrinterName, "serialize", ignore=1)) :
             self.logDebug("Serialized Tees")
             if self.RealBackend :
