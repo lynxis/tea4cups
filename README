@@ -65,6 +65,8 @@ commands you use :
         TEACOPIES : Number of copies requested.
         TEAOPTIONS : Options of the print job.
         TEAINPUTFILE : Print job's data file or empty when job read from stdin.
+        TEABILLING : Job's billing code (lp -o job-billing=SomeCode file.ps)
+        TEACONTROLFILE : Job's IPP message file (usually /var/spool/cups/c?????)
         TEASTATUS : Original CUPS backend's exit code : ONLY AVAILABLE FROM 
                     posthooks, obviously.
         

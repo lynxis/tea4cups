@@ -21,6 +21,10 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307, USA.
 
 Tea4CUPS News :
    
+  * 2.10 : 
+  
+    - Makes the IPP message filename and the Job's billing code available.
+    
   * 2.00 :
 
     - Introduces the notions of pre and post hooks.

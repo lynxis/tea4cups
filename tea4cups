@@ -36,7 +36,7 @@ import signal
 import time
 from struct import unpack
 
-version = "2.01alpha1_unofficial"
+version = "2.10_unofficial"
 
 class TeeError(Exception):
     """Base exception for Tea4CUPS related stuff."""
@@ -414,7 +414,10 @@ class CupsBackend :
         self.PrinterName = os.environ.get("PRINTER", "")
         self.Directory = self.getPrintQueueOption(self.PrinterName, "directory")
         self.DataFile = os.path.join(self.Directory, "%s-%s-%s-%s" % (self.myname, self.PrinterName, self.UserName, self.JobId))
-        self.ClientHost = self.extractJobOriginatingHostName()
+        (ippfilename, ippmessage) = self.parseIPPMessageFile()
+        self.ControlFile = ippfilename
+        self.ClientHost = ippmessage.get("job-originating-host-name")
+        self.JobBilling = ippmessage.get("job-billing")
             
     def getCupsConfigDirectives(self, directives=[]) :
         """Retrieves some CUPS directives from its configuration file.
@@ -443,7 +446,7 @@ class CupsBackend :
             conffile.close()            
         return dirvalues       
             
-    def extractJobOriginatingHostName(self) :        
+    def parseIPPMessageFile(self) :        
         """Extracts the client's hostname or IP address from the CUPS message file for current job."""
         cupsdconf = self.getCupsConfigDirectives(["RequestRoot"])
         requestroot = cupsdconf.get("requestroot", "/var/spool/cups")
@@ -466,7 +469,7 @@ class CupsBackend :
             else :    
                 self.logDebug("Parsing of IPP message file %s ends." % ippmessagefile)
             ippdatafile.close()
-        return ippmessage.get("job-originating-host-name")    
+        return (ippmessagefile, ippmessage)
                 
     def exportAttributes(self) :    
         """Exports our backend's attributes to the environment."""
@@ -483,6 +486,8 @@ class CupsBackend :
         os.environ["TEACOPIES"] = str(self.Copies)
         os.environ["TEAOPTIONS"] = self.Options
         os.environ["TEAINPUTFILE"] = self.InputFile or ""
+        os.environ["TEABILLING"] = self.JobBilling or ""
+        os.environ["TEACONTROLFILE"] = self.ControlFile
         
     def saveDatasAndCheckSum(self) :
         """Saves the input datas into a static file."""
