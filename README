@@ -61,6 +61,12 @@ Installation :
   
         http://www.librelogiciel.com/software/Tea4CUPS/action_Presentation
         
+      and extract it :  
+      
+        $ tar -zxf tea4cups-x.yy.tar.gz
+        
+        where x.yy is Tea4CUPS' version number.
+        
   1 - Copy the 'tea4cups' command into CUPS' backend directory, 
       for example :
       
