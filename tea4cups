@@ -24,6 +24,7 @@
 
 import sys
 import os
+import popen2
 import errno
 import md5
 import cStringIO
@@ -48,6 +49,31 @@ class ConfigError(TeeError) :
 class IPPError(TeeError) :    
     """IPP related exceptions."""
     pass 
+    
+class Popen4ForCUPS(popen2.Popen4) :
+    """Our own class to execute real backends.
+    
+       Their first argument is different from their path so using
+       native popen2.Popen3 would not be feasible.
+    """
+    def __init__(self, cmd, bufsize=-1, arg0=None) :
+        self.arg0 = arg0
+        popen2.Popen4.__init__(self, cmd, bufsize)
+        
+    def _run_child(self, cmd):
+        try :
+            MAXFD = os.sysconf("SC_OPEN_MAX")
+        except (AttributeError, ValueError) :    
+            MAXFD = 256
+        for i in range(3, MAXFD) : 
+            try:
+                os.close(i)
+            except OSError:
+                pass
+        try:
+            os.execvpe(cmd[0], [self.arg0 or cmd[0]] + cmd[1:], os.environ)
+        finally:
+            os._exit(1)
     
 # Some IPP constants    
 OPERATION_ATTRIBUTES_TAG = 0x01
@@ -210,12 +236,12 @@ class CupsBackend :
     def logDebug(self, message) :    
         """Logs something to debug output if debug is enabled."""
         if self.debug :
-            sys.stderr.write("DEBUG: %s (PID %i) : %s\n" % (self.MyName, self.pid, message))
+            sys.stderr.write("DEBUG: %s (PID %i) : %s\n" % (self.MyName, os.getpid(), message))
             sys.stderr.flush()
             
     def logInfo(self, message, level="info") :        
         """Logs a message to CUPS' error_log file."""
-        sys.stderr.write("%s: %s (PID %i) : %s\n" % (level.upper(), self.MyName, self.pid, message))
+        sys.stderr.write("%s: %s (PID %i) : %s\n" % (level.upper(), self.MyName, os.getpid(), message))
         sys.stderr.flush()
         
     def isTrue(self, option) :        
@@ -486,13 +512,43 @@ class CupsBackend :
             
     def runBranches(self) :         
         """Launches each tee defined for the current print queue."""
+        exitcode = 0
         branches = self.enumTeeBranches(self.PrinterName)
         if self.isTrue(self.getPrintQueueOption(self.PrinterName, "serialize", ignore=1)) :
+            self.logDebug("Serialized Tees")
             for (branch, command) in branches.items() :
                 self.logDebug("Launching %s : %s" % (branch, command))
-                os.system(command)
+                retcode = os.system(command)
+                self.logDebug("Exit code for tee %s on printer %s is %s" % (branch, self.PrinterName, retcode))
+                if os.WIFEXITED(retcode) :
+                    retcode = os.WEXITSTATUS(retcode)
+                if retcode :    
+                    self.logInfo("Tee %s on printer %s didn't exit successfully." % (branch, self.PrinterName), "error")
+                    exitcode = 1
         else :        
-            raise TeeError, "Forking tees not yet implemented."
+            self.logDebug("Forked Tees")
+            pids = {}
+            for (branch, command) in branches.items() :
+                pid = os.fork()
+                if pid :
+                    pids[branch] = pid
+                else :    
+                    self.logDebug("Launching %s : %s" % (branch, command))
+                    retcode = os.system(command)
+                    if os.WIFEXITED(retcode) :
+                        retcode = os.WEXITSTATUS(retcode)
+                    else :    
+                        retcode = -1
+                    sys.exit(retcode)
+            for (branch, pid) in pids.items() :
+                (childpid, retcode) = os.waitpid(pid, 0)
+                self.logDebug("Exit code for tee %s (PID %s) on printer %s is %s" % (branch, childpid, self.PrinterName, retcode))
+                if os.WIFEXITED(retcode) :
+                    retcode = os.WEXITSTATUS(retcode)
+                if retcode :    
+                    self.logInfo("Tee %s (PID %s) on printer %s didn't exit successfully." % (branch, childpid, self.PrinterName), "error")
+                    exitcode = 1
+        return exitcode
         
 if __name__ == "__main__" :    
     # This is a CUPS backend, we should act and die like a CUPS backend
