@@ -36,12 +36,17 @@ Tea4CUPS provides three ways to launch commands :
 
         - prehooks : these are guaranteed to be launched before the 
                      print job is sent to the real printer.
+                     Any prehook which exits -1 can cancel the 
+                     print job.
                      
         - tees : these are launched at the same time the job is being             
-                 sent to the real printer.
+                 sent to the real printer, unless the job was 
+                 previously cancelled by a prehook.
                  
         - posthooks : these are guaranteed to be launched after the
-                      print job has been sent to the real printer.
+                      print job has been sent to the real printer,
+                      unless the job was previously cancelled by a
+                      prehook.
                  
 To help your own commands, Tea4CUPS makes available as part of the
 environment several variables which can be used as part of the
@@ -60,7 +65,7 @@ commands you use :
         TEAOPTIONS : Options of the print job.
         TEAINPUTFILE : Print job's data file or empty when job read from stdin.
         TEASTATUS : Original CUPS backend's exit code : ONLY AVAILABLE FROM 
-                    post hooks, obviously.
+                    posthooks, obviously.
         
 In the case you want to use both Tea4CUPS and PyKota, you MUST install 
 PyKota v1.22alpha2 or higher to avoid a race condition.
