@@ -253,7 +253,7 @@ class CupsBackend :
         try :
             sectionbranches = [ (k, v) for (k, v) in self.config.items(printqueuename) if k.startswith("tee_") ]
         except ConfigParser.NoSectionError, msg :    
-            self.logInfo("No section for print queue %s : " % (printqueuename, msg), "info")
+            self.logInfo("No section for print queue %s : %s" % (printqueuename, msg))
             sectionbranches = []
         branches = {}
         for (k, v) in globalbranches :
@@ -350,12 +350,17 @@ class CupsBackend :
         if device_uri.startswith(muststartwith) :
             fulldevice_uri = device_uri[:]
             device_uri = fulldevice_uri[len(muststartwith):]
-            if device_uri.startswith("//") :  
-                device_uri = device_uri[2:]
+            for i in range(2) :
+                if device_uri.startswith("/") :  
+                    device_uri = device_uri[1:]
         try :
             (backend, destination) = device_uri.split(":", 1) 
         except ValueError :    
-            raise TeeError, "Invalid DEVICE_URI : %s\n" % device_uri
+            if not device_uri :
+                self.logInfo("Not attached to an existing print queue.")
+                backend = ""
+            else :    
+                raise TeeError, "Invalid DEVICE_URI : %s\n" % device_uri
         
         self.JobId = sys.argv[1].strip()
         self.UserName = sys.argv[2].strip()
@@ -374,8 +379,36 @@ class CupsBackend :
         self.DataFile = os.path.join(self.Directory, "%s-%s-%s-%s" % (self.myname, self.PrinterName, self.UserName, self.JobId))
         self.ClientHost = self.extractJobOriginatingHostName()
             
+    def getCupsConfigDirectives(self, directives=[]) :
+        """Retrieves some CUPS directives from its configuration file.
+        
+           Returns a mapping with lowercased directives as keys and 
+           their setting as values.
+        """
+        dirvalues = {} 
+        cupsroot = os.environ.get("CUPS_SERVERROOT", "/etc/cups")
+        cupsdconf = os.path.join(cupsroot, "cupsd.conf")
+        try :
+            conffile = open(cupsdconf, "r")
+        except IOError :    
+            raise TeeError, "Unable to open %s" % cupsdconf
+        else :    
+            for line in conffile.readlines() :
+                linecopy = line.strip().lower()
+                for di in [d.lower() for d in directives] :
+                    if linecopy.startswith("%s " % di) :
+                        try :
+                            val = line.split()[1]
+                        except :    
+                            pass # ignore errors, we take the last value in any case.
+                        else :    
+                            dirvalues[di] = val
+            conffile.close()            
+        return dirvalues       
+            
     def extractJobOriginatingHostName(self) :        
         """Extracts the client's hostname or IP address from the CUPS message file for current job."""
+        cupsdconf = self.getCupsConfigDirectives(["RequestRoot"])
         requestroot = cupsdconf.get("requestroot", "/var/spool/cups")
         if (len(self.JobId) < 5) and self.JobId.isdigit() :
             ippmessagefile = "c%05i" % int(self.JobId)
@@ -416,7 +449,7 @@ class CupsBackend :
         
     def saveDatasAndCheckSum(self) :
         """Saves the input datas into a static file."""
-        self.logDebug("Duplicating data stream to %s" % self.DataFile)
+        self.logDebug("Duplicating data stream into %s" % self.DataFile)
         mustclose = 0
         if self.InputFile is not None :
             infile = open(self.InputFile, "rb")
