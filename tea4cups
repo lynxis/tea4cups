@@ -558,7 +558,11 @@ class CupsBackend :
             self.logDebug("Begin serialized %ss" % btypetitle)
             if (btype == "tee") and self.RealBackend :
                 self.logDebug("Launching original backend %s for printer %s" % (self.RealBackend, self.PrinterName))
-                exitcode = self.runOriginalBackend()
+                retcode = self.runOriginalBackend()
+                if os.WIFEXITED(retcode) :
+                    retcode = os.WEXITSTATUS(retcode)
+                os.environ["TEASTATUS"] = str(retcode)
+                exitcode = retcode
             for branch in branchlist :
                 command = branches[branch]
                 if self.gotSigTerm :
