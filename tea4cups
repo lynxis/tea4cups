@@ -31,7 +31,9 @@ import cStringIO
 import shlex
 import tempfile
 import ConfigParser
-import threading
+import select
+import signal
+import time
 from struct import unpack
 
 version = "0.99"
@@ -223,6 +225,9 @@ class CupsBackend :
     """Base class for tools with no database access."""
     def __init__(self) :
         """Initializes the CUPS backend wrapper."""
+        self.gotSigTerm = 0
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        signal.signal(signal.SIGPIPE, signal.SIG_IGN)
         self.MyName = "Tea4CUPS"
         self.myname = "tea4cups"
         self.pid = os.getpid()
@@ -238,7 +243,7 @@ class CupsBackend :
             
     def logInfo(self, message, level="info") :        
         """Logs a message to CUPS' error_log file."""
-        sys.stderr.write("%s: %s v%s (PID %i) : %s\n" % (level.upper(), self.MyName, version, os.getpid(), message))
+        sys.stderr.write("%s: %s v%s (PID %i / JobId %s) : %s\n" % (level.upper(), self.MyName, version, os.getpid(), self.JobId, message))
         sys.stderr.flush()
         
     def logDebug(self, message) :    
@@ -307,6 +312,8 @@ class CupsBackend :
         # not available.
         available = []
         (directory, myname) = os.path.split(sys.argv[0])
+        if not directory :
+            directory = "./"
         tmpdir = tempfile.gettempdir()
         lockfilename = os.path.join(tmpdir, "%s..LCK" % myname)
         if os.path.exists(lockfilename) :
@@ -512,9 +519,15 @@ class CupsBackend :
         if not self.isTrue(self.getPrintQueueOption(self.PrinterName, "keepfiles", ignore=1)) :
             os.remove(self.DataFile)
             
+    def sigtermHandler(self, signum, frame) :
+        """Sets an attribute whenever SIGTERM is received."""
+        self.gotSigTerm = 1
+        self.logInfo("SIGTERM received for Job %s." % self.JobId)
+        
     def runBranches(self) :         
         """Launches each tee defined for the current print queue."""
         exitcode = 0
+        signal.signal(signal.SIGTERM, self.sigtermHandler)
         branches = self.enumTeeBranches(self.PrinterName)
         if self.isTrue(self.getPrintQueueOption(self.PrinterName, "serialize", ignore=1)) :
             self.logDebug("Serialized Tees")
@@ -522,6 +535,8 @@ class CupsBackend :
                 self.logDebug("Launching original backend %s for printer %s" % (self.RealBackend, self.PrinterName))
                 exitcode = self.runOriginalBackend()
             for (branch, command) in branches.items() :
+                if self.gotSigTerm :
+                    break
                 self.logDebug("Launching %s : %s" % (branch, command))
                 retcode = os.system(command)
                 self.logDebug("Exit code for tee %s on printer %s is %s" % (branch, self.PrinterName, retcode))
@@ -536,6 +551,8 @@ class CupsBackend :
             if self.RealBackend :
                 branches["Original backend"] = None     # Fakes a tee to launch one more child
             for (branch, command) in branches.items() :
+                if self.gotSigTerm :
+                    break
                 pid = os.fork()
                 if pid :
                     pids[branch] = pid
@@ -559,7 +576,36 @@ class CupsBackend :
                 if retcode :    
                     self.logInfo("Tee %s (PID %s) on printer %s didn't exit successfully." % (branch, childpid, self.PrinterName), "error")
                     exitcode = 1
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
         return exitcode
+        
+    def unregisterFileNo(self, pollobj, fileno) :                
+        """Removes a file handle from the polling object."""
+        try :
+            pollobj.unregister(fileno)
+        except KeyError :    
+            self.logInfo("File number %s unregistered twice from polling object, ignored." % fileno, "warn")
+        except :    
+            self.logDebug("Error while unregistering file number %s from polling object." % fileno)
+        else :    
+            self.logDebug("File number %s unregistered from polling object." % fileno)
+            
+    def formatFileEvent(self, fd, mask) :        
+        """Formats file debug info."""
+        maskval = []
+        if mask & select.POLLIN :
+            maskval.append("POLLIN")
+        if mask & select.POLLOUT :
+            maskval.append("POLLOUT")
+        if mask & select.POLLPRI :
+            maskval.append("POLLPRI")
+        if mask & select.POLLERR :
+            maskval.append("POLLERR")
+        if mask & select.POLLHUP :
+            maskval.append("POLLHUP")
+        if mask & select.POLLNVAL :
+            maskval.append("POLLNVAL")
+        return "%s (%s)" % (fd, " | ".join(maskval))
         
     def runOriginalBackend(self) :    
         """Launches the original backend."""
@@ -567,63 +613,201 @@ class CupsBackend :
         arguments = sys.argv
         self.logDebug("Starting original backend %s with args %s" % (originalbackend, " ".join(['"%s"' % a for a in ([os.environ["DEVICE_URI"]] + arguments[1:])])))
         subprocess = Popen4ForCUPS([originalbackend] + arguments[1:], bufsize=0, arg0=os.environ["DEVICE_URI"])
-        rendezvous = threading.Event()
+        
+        # Save file descriptors, we will need them later.
+        stderrfno = sys.stderr.fileno()
+        fromcfno = subprocess.fromchild.fileno()
+        tocfno = subprocess.tochild.fileno()
+        
+        # We will have to be careful when dealing with I/O 
+        # So we use a poll object to know when to read or write
+        pollster = select.poll()
+        pollster.register(fromcfno, select.POLLIN | select.POLLPRI)
+        pollster.register(stderrfno, select.POLLOUT)
+        pollster.register(tocfno, select.POLLOUT)
+        
+        # Initialize our buffers
+        indata = ""
+        outdata = ""
+        endinput = endoutput = 0
+        inputclosed = outputclosed = 0
+        totaltochild = totalfromcups = 0
+        totalfromchild = totaltocups = 0
+        
         if self.InputFile is None :
-           self.logDebug("Launching data thread.")
-           infile = open(self.DataFile, "rb")
-           iothread = threading.Thread(target = self.handleOriginalBackendIO, kwargs = { "parent" : threading.currentThread(), "event" : rendezvous, "inf": infile, "outf" : subprocess.tochild})
-           iothread.start()
-           
-        # here we only want to read its output and send it on our stderr
-        while (self.InputFile is not None) or iothread.isAlive() : # until all data transmitted to original backend
-            data = subprocess.fromchild.readline()
-            if (not data) or rendezvous.isSet() :
-                break
-            sys.stderr.write(data)    
-            sys.stderr.flush()
+           # this is not a real file, we read the job's data
+            # from our temporary file which is a copy of stdin 
+            inf = open(self.DataFile, "rb")
+            infno = inf.fileno()
+            pollster.register(infno, select.POLLIN | select.POLLPRI)
+        else :    
+            # job's data is in a file, no need to pass the data
+            # to the original backend
+            self.logDebug("Job's data is in %s" % self.InputFile)
+            infno = None
+            endinput = 1
+        
+        self.logDebug("Entering streams polling loop...")
+        MEGABYTE = 1024*1024
+        killed = 0
+        status = -1
+        while (status == -1) and (not killed) and not (inputclosed and outputclosed) :
+            # First check if original backend is still alive
+            status = subprocess.poll()
             
-        if not rendezvous.isSet() :    
-            rendezvous.set()    
-        if self.InputFile is None :
-            infile.close()
-            iothread.join()
-        subprocess.fromchild.close()
-        subprocess.tochild.close()
-        status = subprocess.wait()
+            # Now if we got SIGTERM, we have 
+            # to kill -TERM the original backend
+            if self.gotSigTerm and not killed :
+                try :
+                    os.kill(subprocess.pid, signal.SIGTERM)
+                except OSError, msg : # ignore but logs if process was already killed.
+                    self.logDebug("Error while sending signal to pid %s : %s" % (subprocess.pid, msg))
+                else :    
+                    self.logInfo(_("SIGTERM was sent to original backend %s (PID %s)") % (originalbackend, subprocess.pid))
+                    killed = 1
+            
+            # In any case, deal with any remaining I/O
+            try :
+                availablefds = pollster.poll(5000)
+            except select.error, msg :    
+                self.logDebug("Interrupted poll : %s" % msg)
+                availablefds = []
+            if not availablefds :
+                self.logDebug("Nothing to do, sleeping a bit...")
+                time.sleep(0.01) # give some time to the system
+            else :
+                for (fd, mask) in availablefds :
+                    try :
+                        if mask & select.POLLOUT :
+                            # We can write
+                            if fd == tocfno :
+                                if indata :
+                                    try :
+                                        nbwritten = os.write(fd, indata)    
+                                    except (OSError, IOError), msg :    
+                                        self.logDebug("Error while writing to original backend's stdin %s : %s" % (fd, msg))
+                                    else :    
+                                        if len(indata) != nbwritten :
+                                            self.logDebug("Short write to original backend's input !")
+                                        totaltochild += nbwritten    
+                                        self.logDebug("%s bytes sent to original backend so far..." % totaltochild)
+                                        indata = indata[nbwritten:]
+                                else :        
+                                    self.logDebug("No data to send to original backend yet, sleeping a bit...")
+                                    time.sleep(0.01)
+                                    
+                                if endinput :    
+                                    self.unregisterFileNo(pollster, tocfno)        
+                                    self.logDebug("Closing original backend's stdin.")
+                                    os.close(tocfno)
+                                    inputclosed = 1
+                            elif fd == stderrfno :
+                                if outdata :
+                                    try :
+                                        nbwritten = os.write(fd, outdata)
+                                    except (OSError, IOError), msg :    
+                                        self.logDebug("Error while writing to CUPS back channel (stderr) %s : %s" % (fd, msg))
+                                    else :
+                                        if len(outdata) != nbwritten :
+                                            self.logDebug("Short write to stderr (CUPS) !")
+                                        totaltocups += nbwritten    
+                                        self.logDebug("%s bytes sent back to CUPS so far..." % totaltocups)
+                                        outdata = outdata[nbwritten:]
+                                else :        
+                                    # self.logDebug("No data to send back to CUPS yet, sleeping a bit...") # Uncommenting this fills your logs
+                                    time.sleep(0.01) # Give some time to the system, stderr is ALWAYS writeable it seems.
+                                    
+                                if endoutput :    
+                                    self.unregisterFileNo(pollster, stderrfno)        
+                                    outputclosed = 1
+                            else :    
+                                self.logDebug("Unexpected : %s - Sleeping a bit..." % self.formatFileEvent(fd, mask))
+                                time.sleep(0.01)
+                                
+                        if mask & (select.POLLIN | select.POLLPRI) :     
+                            # We have something to read
+                            try :
+                                data = os.read(fd, MEGABYTE)
+                            except (IOError, OSError), msg :    
+                                self.logDebug("Error while reading file %s : %s" % (fd, msg))
+                            else :
+                                if fd == infno :
+                                    if not data :    # If yes, then no more input data
+                                        self.unregisterFileNo(pollster, infno)
+                                        self.logDebug("Input data ends.")
+                                        endinput = 1 # this happens with real files.
+                                    else :    
+                                        indata += data
+                                        totalfromcups += len(data)
+                                        self.logDebug("%s bytes read from CUPS so far..." % totalfromcups)
+                                elif fd == fromcfno :
+                                    if not data :
+                                        self.logDebug("No back channel data to read from original backend yet, sleeping a bit...")
+                                        time.sleep(0.01)
+                                    else :
+                                        outdata += data
+                                        totalfromchild += len(data)
+                                        self.logDebug("%s bytes read from original backend so far..." % totalfromchild)
+                                else :    
+                                    self.logDebug("Unexpected : %s - Sleeping a bit..." % self.formatFileEvent(fd, mask))
+                                    time.sleep(0.01)
+                                    
+                        if mask & (select.POLLHUP | select.POLLERR) :
+                            # Treat POLLERR as an EOF.
+                            # Some standard I/O stream has no more datas
+                            self.unregisterFileNo(pollster, fd)
+                            if fd == infno :
+                                # Here we are in the case where the input file is stdin.
+                                # which has no more data to be read.
+                                self.logDebug("Input data ends.")
+                                endinput = 1
+                            elif fd == fromcfno :    
+                                # We are no more interested in this file descriptor        
+                                self.logDebug("Closing original backend's stdout+stderr.")
+                                os.close(fromcfno)
+                                endoutput = 1
+                            else :    
+                                self.logDebug("Unexpected : %s - Sleeping a bit..." % self.formatFileEvent(fd, mask))
+                                time.sleep(0.01)
+                                
+                        if mask & select.POLLNVAL :        
+                            self.logDebug("File %s was closed. Unregistering from polling object." % fd)
+                            self.unregisterFileNo(pollster, fd)
+                    except IOError, msg :            
+                        self.logDebug("Got an IOError : %s" % msg) # we got signalled during an I/O
+                
+        # We must close the original backend's input stream
+        if killed and not inputclosed :
+            self.logDebug("Forcing close of original backend's stdin.")
+            os.close(tocfno)
+        
+        self.logDebug("Exiting streams polling loop...")
+        
+        self.logDebug("input data's final length : %s" % len(indata))
+        self.logDebug("back-channel data's final length : %s" % len(outdata))
+        
+        self.logDebug("Total bytes read from CUPS (job's datas) : %s" % totalfromcups)
+        self.logDebug("Total bytes sent to original backend (job's datas) : %s" % totaltochild)
+        
+        self.logDebug("Total bytes read from original backend (back-channel datas) : %s" % totalfromchild)
+        self.logDebug("Total bytes sent back to CUPS (back-channel datas) : %s" % totaltocups)
+        
+        # Check exit code of original CUPS backend.    
+        if status == -1 :
+            # we exited the loop before the original backend exited
+            # now we have to wait for it to finish and get its status
+            self.logDebug("Waiting for original backend to exit...")
+            try :
+                status = subprocess.wait()
+            except OSError : # already dead : TODO : detect when abnormal
+                status = 0
         if os.WIFEXITED(status) :
             return os.WEXITSTATUS(status)
+        elif not killed :    
+            self.logInfo("CUPS backend %s died abnormally." % originalbackend, "error")
+            return -1
         else :    
             return 1
-        
-    def handleOriginalBackendIO(self, parent, event, inf, outf) :    
-        """Thread to handles the original backend's I/O."""
-        dummy = 0
-        totalsent = 0
-        while 1 :
-            if not parent.isAlive() :
-                self.logInfo("Parent died unexpectedly.", level = "warn")
-                break
-            if event.isSet() :    
-                self.logInfo("Parent said work is finished.")
-                break
-            try :    
-                data = inf.readline()
-                if not data :
-                    break
-                outf.write(data)    
-                totalsent += len(data)
-                dummy += 1
-                if not (dummy % 10) :
-                    self.logDebug("Sent %i bytes to original backend." % totalsent)
-                try :
-                    outf.flush()
-                except :    
-                    pass
-            except IOError, msg :
-                self.logInfo("I/O Error : %s" % msg, level = "warn")
-                break
-        event.set()        
-        sys.exit(0)
         
 if __name__ == "__main__" :    
     # This is a CUPS backend, we should act and die like a CUPS backend
