@@ -57,6 +57,10 @@ PyKota v1.22alpha2 or higher to avoid a race condition.
 Installation :
 --------------
 
+  0 - Download Tea4CUPS from :
+  
+        http://www.librelogiciel.com/software/Tea4CUPS/action_Presentation
+        
   1 - Copy the 'tea4cups' command into CUPS' backend directory, 
       for example :
       
@@ -96,6 +100,15 @@ Troubleshooting :
       
   5 - Look at CUPS' error_log file for diagnostic and error messages.
   
+=============================================================================
+
+CUPS (Common UNIX(r) Printing System) is trademark property of Easy Software 
+Products.
+
+You can download CUPS from :
+
+        http://www.cups.org
+
 =============================================================================
     
 Please e-mail bugs to : alet@librelogiciel.com (Jerome Alet)
