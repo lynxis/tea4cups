@@ -373,6 +373,9 @@ class CupsBackend :
                             available.append('%s %s:%s "%s+%s" "%s managed %s"' \
                                                  % (devicetype, self.myname, device, self.MyName, name, self.MyName, fullname))
             os.remove(lockfilename)
+        available.append('direct %s:// "%s+Nothing" "%s managed Virtual Printer"' \
+                             % (self.myname, self.MyName, self.MyName))
+        available.sort()                      
         return available
                         
     def initBackend(self) :    
