@@ -226,6 +226,7 @@ class CupsBackend :
     def __init__(self) :
         """Initializes the CUPS backend wrapper."""
         self.gotSigTerm = 0
+        self.isCancelled = 0    # did a prehook cancel the print job ?
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
         signal.signal(signal.SIGPIPE, signal.SIG_IGN)
         self.MyName = "Tea4CUPS"
@@ -537,7 +538,7 @@ class CupsBackend :
             status = self.runCommands(branchtype, branches, serialize)
             if status :
                 exitcode = status
-            if (branchtype == "prehook") and (os.environ.get("TEASTATUS", "") == "CANCELLED") :
+            if (branchtype == "prehook") and self.isCancelled :
                 break # We don't want to execute tees or posthooks in this case
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
         if not exitcode :
@@ -570,7 +571,7 @@ class CupsBackend :
                 if retcode :    
                     if (btype == "prehook") and (retcode == 255) : # -1
                         self.logInfo("Job %s cancelled by prehook %s" % (self.JobId, branch))
-                        os.environ["TEASTATUS"] = "CANCELLED" # and don't touch exitcode
+                        self.isCancelled = 1
                     else :    
                         self.logInfo("%s %s on printer %s didn't exit successfully." % (btypetitle, branch, self.PrinterName), "error")
                         exitcode = 1
@@ -608,7 +609,7 @@ class CupsBackend :
                 if retcode :    
                     if (btype == "prehook") and (retcode == 255) : # -1
                         self.logInfo("Job %s cancelled by prehook %s" % (self.JobId, branch))
-                        os.environ["TEASTATUS"] = "CANCELLED" # and don't touch exitcode
+                        self.isCancelled = 1
                     else :    
                         self.logInfo("%s %s (PID %s) on printer %s didn't exit successfully." % (btypetitle, branch, childpid, self.PrinterName), "error")
                         exitcode = 1
