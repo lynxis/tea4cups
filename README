@@ -49,6 +49,9 @@ commands you use :
         TEAOPTIONS : Options of the print job.
         TEAINPUTFILE : Print job's data file or empty when job read from stdin.
         
+In the case you want to use both Tea4CUPS and PyKota, you MUST install 
+PyKota v1.22alpha2 or higher to avoid a race condition.
+
 =============================================================================
 
 Installation :
