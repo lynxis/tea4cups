@@ -182,11 +182,11 @@ class IPPMessage :
         return self.parseTag()
         
     def job_attributes_tag(self) : 
-        """Indicates that the parser enters into an operation-attributes-tag group."""
+        """Indicates that the parser enters into a job-attributes-tag group."""
         return self.parseTag()
         
     def printer_attributes_tag(self) : 
-        """Indicates that the parser enters into an operation-attributes-tag group."""
+        """Indicates that the parser enters into a printer-attributes-tag group."""
         return self.parseTag()
         
     def parse(self) :
