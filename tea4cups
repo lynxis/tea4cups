@@ -33,6 +33,8 @@ import tempfile
 import ConfigParser
 from struct import unpack
 
+version = "0.99"
+
 class TeeError(Exception):
     """Base exception for Tea4CUPS related stuff."""
     def __init__(self, message = ""):
@@ -232,17 +234,16 @@ class CupsBackend :
         else :    
             self.config = FakeConfig()
             self.debug = 1      # no config, so force debug mode !
+            
+    def logInfo(self, message, level="info") :        
+        """Logs a message to CUPS' error_log file."""
+        sys.stderr.write("%s: %s v%s (PID %i) : %s\n" % (level.upper(), self.MyName, version, os.getpid(), message))
+        sys.stderr.flush()
         
     def logDebug(self, message) :    
         """Logs something to debug output if debug is enabled."""
         if self.debug :
-            sys.stderr.write("DEBUG: %s (PID %i) : %s\n" % (self.MyName, os.getpid(), message))
-            sys.stderr.flush()
-            
-    def logInfo(self, message, level="info") :        
-        """Logs a message to CUPS' error_log file."""
-        sys.stderr.write("%s: %s (PID %i) : %s\n" % (level.upper(), self.MyName, os.getpid(), message))
-        sys.stderr.flush()
+            self.logInfo(message, level="debug")
         
     def isTrue(self, option) :        
         """Returns 1 if option is set to true, else 0."""
@@ -561,9 +562,21 @@ if __name__ == "__main__" :
                               % sys.argv[0])
         sys.exit(1)
     else :    
-        wrapper.initBackend()
-        wrapper.saveDatasAndCheckSum()
-        wrapper.exportAttributes()
-        retcode = wrapper.runBranches()
-        wrapper.cleanUp()
+        try :
+            wrapper.initBackend()
+            wrapper.saveDatasAndCheckSum()
+            wrapper.exportAttributes()
+            retcode = wrapper.runBranches()
+            wrapper.cleanUp()
+        except SystemExit, e :    
+            retcode = e.code
+        except :    
+            import traceback
+            lines = []
+            for line in traceback.format_exception(*sys.exc_info()) :
+                lines.extend([l for l in line.split("\n") if l])
+            msg = "ERROR: ".join(["%s (PID %s) : %s\n" % (wrapper.MyName, wrapper.pid, l) for l in (["ERROR: Tea4CUPS v%s" % version] + lines)])
+            sys.stderr.write(msg)
+            sys.stderr.flush()
+            retcode = 1
         sys.exit(retcode)
