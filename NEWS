@@ -21,6 +21,12 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307, USA.
 
 Tea4CUPS News :
    
+  * 2.11 :
+  
+    - Ignores errors in posthooks because the job was probably 
+      successfully printed so no need to stop the print queue.
+      We log a warning instead in this case.
+      
   * 2.10 : 
   
     - Makes the IPP message filename and the Job's billing code available.

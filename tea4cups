@@ -36,7 +36,7 @@ import signal
 import time
 from struct import unpack
 
-version = "2.10_unofficial"
+version = "2.11_unofficial"
 
 class TeeError(Exception):
     """Base exception for Tea4CUPS related stuff."""
@@ -542,7 +542,11 @@ class CupsBackend :
             branches = self.enumBranches(self.PrinterName, branchtype)
             status = self.runCommands(branchtype, branches, serialize)
             if status :
-                exitcode = status
+                if branchtype != "posthook" :
+                    exitcode = status
+                else :    
+                    # we just ignore error in posthooks
+                    self.logInfo("An error occured during the execution of posthooks.", "warn")
             if (branchtype == "prehook") and self.isCancelled :
                 break # We don't want to execute tees or posthooks in this case
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
