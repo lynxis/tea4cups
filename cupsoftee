@@ -1,0 +1,82 @@
+#! /usr/bin/env python
+# -*- coding: ISO-8859-15 -*-
+
+# CupsOfTee : Tee for CUPS
+#
+# PyKota - Print Quotas for CUPS and LPRng
+#
+# (c) 2005 Jerome Alet <alet@librelogiciel.com>
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307, USA.
+#
+# $Id$
+#
+#
+
+import sys
+import os
+import popen2
+import cStringIO
+import shlex
+import select
+import signal
+import time
+
+if __name__ == "__main__" :    
+    # This is a CUPS backend, we should act and die like a CUPS backend
+    retcode = 0
+    if len(sys.argv) == 1 :
+        # we will execute each existing backend in device enumeration mode
+        # and generate their PyKota accounting counterpart
+        (directory, myname) = os.path.split(sys.argv[0])
+        for backend in [os.path.join(directory, b) for b in os.listdir(directory) if os.path.isfile(os.path.join(directory, b)) and (b != myname)] :
+            answer = os.popen(backend, "r")
+            try :
+                devices = [line.strip() for line in answer.readlines()]
+            except :    
+                devices = []
+            status = answer.close()
+            if status is None :
+                for d in devices :
+                    # each line is of the form : 'xxxx xxxx "xxxx xxx" "xxxx xxx"'
+                    # so we have to decompose it carefully
+                    fdevice = cStringIO.StringIO("%s" % d)
+                    tokenizer = shlex.shlex(fdevice)
+                    tokenizer.wordchars = tokenizer.wordchars + r".:,?!~/\_$*-+={}[]()#"
+                    arguments = []
+                    while 1 :
+                        token = tokenizer.get_token()
+                        if token :
+                            arguments.append(token)
+                        else :
+                            break
+                    fdevice.close()
+                    try :
+                        (devicetype, device, name, fullname) = arguments
+                    except ValueError :    
+                        pass    # ignore this 'bizarre' device
+                    else :    
+                        if name.startswith('"') and name.endswith('"') :
+                            name = name[1:-1]
+                        if fullname.startswith('"') and fullname.endswith('"') :
+                            fullname = fullname[1:-1]
+                        print '%s cupspykota:%s "PyKota+%s" "PyKota managed %s"' % (devicetype, device, name, fullname)
+        retcode = 0                
+    elif len(sys.argv) not in (6, 7) :    
+        sys.stderr.write("ERROR: %s job-id user title copies options [file]\n" % sys.argv[0])
+        retcode = 1
+    else :    
+        sys.stderr.write("ERROR: Not Yet !\n")
+        retcode = 1
+    sys.exit(retcode)    
