@@ -24,57 +24,156 @@
 
 import sys
 import os
-import popen2
+import errno
 import cStringIO
 import shlex
-import select
-import signal
-import time
+import tempfile
+
+class CupsBackend :
+    """Base class for tools with no database access."""
+    def __init__(self) :
+        """Initializes the CUPS backend wrapper."""
+        self.debug = 1
+        
+    def fakePrint(self) :    
+        """Fakes to print the job."""
+        if os.environ.has_key("CUPS_SERVERROOT") and os.path.isdir(os.environ.get("CUPS_SERVERROOT", "")) :
+            # Either the job's datas are on our stdin, or in a file
+            if len(sys.argv) == 7 :
+                self.InputFile = sys.argv[6]
+            else :    
+                self.InputFile = None
+                
+            # check that the DEVICE_URI environment variable's value is 
+            # prefixed with "cupsoftee:" otherwise don't touch it.
+            # If this is the case, we have to remove the prefix from 
+            # the environment before launching the real backend in cupspykota
+            device_uri = os.environ.get("DEVICE_URI", "")
+            if device_uri.startswith("cupspykota:") :
+                fulldevice_uri = device_uri[:]
+                device_uri = fulldevice_uri[len("cupspykota:"):]
+                if device_uri.startswith("//") :    # lpd (at least)
+                    device_uri = device_uri[2:]
+                os.environ["DEVICE_URI"] = device_uri   # TODO : side effect !
+            # TODO : check this for more complex urls than ipp://myprinter.dot.com:631/printers/lp
+            try :
+                (backend, destination) = device_uri.split(":", 1) 
+            except ValueError :    
+                raise PyKotaToolError, "Invalid DEVICE_URI : %s\n" % device_uri
+            while destination.startswith("/") :
+                destination = destination[1:]
+            checkauth = destination.split("@", 1)    
+            if len(checkauth) == 2 :
+                destination = checkauth[1]
+            printerhostname = destination.split("/")[0].split(":")[0]
+            return ("CUPS", \
+                    printerhostname, \
+                    os.environ.get("PRINTER"), \
+                    sys.argv[2].strip(), \
+                    sys.argv[1].strip(), \
+                    inputfile, \
+                    int(sys.argv[4].strip()), \
+                    sys.argv[3], \
+                    sys.argv[5], \
+                    backend)
+        
+    def discoverOtherBackends(self) :    
+        """Discovers the other CUPS backends.
+        
+           Executes each existing backend in turn in device enumeration mode.
+           Returns the list of available backends.
+        """
+        self.logDebug("Entering device enumeration loop.")
+        available = []
+        tmpdir = tempfile.gettempdir()
+        lockfilename = os.path.join(tmpdir, "cupsoftee..LCK")
+        if os.path.exists(lockfilename) :
+            self.logInfo("Lock file present.")
+            locked = 1
+            lockfile = open(lockfilename, "r")
+            pid = int(lockfile.read())
+            lockfile.close()
+            try :
+                # see if the pid contained in the lock file is still running
+                os.kill(pid, 0)
+            except OSError, e :    
+                if e.errno != errno.EPERM :
+                    # process doesn't exist anymore
+                    self.logInfo("Removing stalled lock.")
+                    os.remove(lockfilename)
+                    locked = 0
+            if locked :        
+                self.logInfo("No device enumeration.")
+            
+        if not os.path.exists(lockfilename) :
+            lockfile = open(lockfilename, "w")
+            lockfile.write("%i" % os.getpid())
+            lockfile.close()
+            (directory, myname) = os.path.split(sys.argv[0])
+            for backend in [ os.path.join(directory, b) \
+                                 for b in os.listdir(directory) 
+                                     if os.path.isfile(os.path.join(directory, b))\
+                                        and (b != myname)] :
+                answer = os.popen(backend, "r")
+                try :
+                    devices = [line.strip() for line in answer.readlines()]
+                except :    
+                    devices = []
+                status = answer.close()
+                if status is None :
+                    for d in devices :
+                        # each line is of the form : 
+                        # 'xxxx xxxx "xxxx xxx" "xxxx xxx"'
+                        # so we have to decompose it carefully
+                        fdevice = cStringIO.StringIO(d)
+                        tokenizer = shlex.shlex(fdevice)
+                        tokenizer.wordchars = tokenizer.wordchars + \
+                                                        r".:,?!~/\_$*-+={}[]()#"
+                        arguments = []
+                        while 1 :
+                            token = tokenizer.get_token()
+                            if token :
+                                arguments.append(token)
+                            else :
+                                break
+                        fdevice.close()
+                        try :
+                            (devicetype, device, name, fullname) = arguments
+                        except ValueError :    
+                            pass    # ignore this 'bizarre' device
+                        else :    
+                            if name.startswith('"') and name.endswith('"') :
+                                name = name[1:-1]
+                            if fullname.startswith('"') and fullname.endswith('"') :
+                                fullname = fullname[1:-1]
+                            available.append('%s cupsoftee:%s "CupsOfTee+%s" "CupsOfTee managed %s"' \
+                                                 % (devicetype, device, name, fullname))
+            os.remove(lockfilename)
+        self.logDebug("Exiting device enumeration loop.")
+        return available
+                        
+    def logDebug(self, message) :    
+        """Logs something to debug output if debug is enabled."""
+        if self.debug :
+            sys.stderr.write("DEBUG: %s\n" % message)
+            sys.stderr.flush()
+            
+    def logInfo(self, message, level="info") :        
+        """Logs a message to CUPS' error_log file."""
+        sys.stderr.write("%s: %s\n" % (level.upper(), message))
+        sys.stderr.flush()
+        
 
 if __name__ == "__main__" :    
     # This is a CUPS backend, we should act and die like a CUPS backend
-    retcode = 0
+    wrapper = CupsBackend()
     if len(sys.argv) == 1 :
-        # we will execute each existing backend in device enumeration mode
-        # and generate their PyKota accounting counterpart
-        (directory, myname) = os.path.split(sys.argv[0])
-        for backend in [os.path.join(directory, b) for b in os.listdir(directory) if os.path.isfile(os.path.join(directory, b)) and (b != myname)] :
-            answer = os.popen(backend, "r")
-            try :
-                devices = [line.strip() for line in answer.readlines()]
-            except :    
-                devices = []
-            status = answer.close()
-            if status is None :
-                for d in devices :
-                    # each line is of the form : 'xxxx xxxx "xxxx xxx" "xxxx xxx"'
-                    # so we have to decompose it carefully
-                    fdevice = cStringIO.StringIO("%s" % d)
-                    tokenizer = shlex.shlex(fdevice)
-                    tokenizer.wordchars = tokenizer.wordchars + r".:,?!~/\_$*-+={}[]()#"
-                    arguments = []
-                    while 1 :
-                        token = tokenizer.get_token()
-                        if token :
-                            arguments.append(token)
-                        else :
-                            break
-                    fdevice.close()
-                    try :
-                        (devicetype, device, name, fullname) = arguments
-                    except ValueError :    
-                        pass    # ignore this 'bizarre' device
-                    else :    
-                        if name.startswith('"') and name.endswith('"') :
-                            name = name[1:-1]
-                        if fullname.startswith('"') and fullname.endswith('"') :
-                            fullname = fullname[1:-1]
-                        print '%s cupspykota:%s "PyKota+%s" "PyKota managed %s"' % (devicetype, device, name, fullname)
-        retcode = 0                
+        print "\n".join(wrapper.discoverOtherBackends())
+        sys.exit(0)                
     elif len(sys.argv) not in (6, 7) :    
-        sys.stderr.write("ERROR: %s job-id user title copies options [file]\n" % sys.argv[0])
-        retcode = 1
+        sys.stderr.write("ERROR: %s job-id user title copies options [file]\n"\
+                              % sys.argv[0])
+        sys.exit(1)
     else :    
         sys.stderr.write("ERROR: Not Yet !\n")
-        retcode = 1
-    sys.exit(retcode)    
+        sys.exit(1)
