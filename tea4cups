@@ -225,8 +225,6 @@ class CupsBackend :
     """Base class for tools with no database access."""
     def __init__(self) :
         """Initializes the CUPS backend wrapper."""
-        self.gotSigTerm = 0
-        self.isCancelled = 0    # did a prehook cancel the print job ?
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
         signal.signal(signal.SIGPIPE, signal.SIG_IGN)
         self.MyName = "Tea4CUPS"
@@ -531,6 +529,8 @@ class CupsBackend :
     def runBranches(self) :         
         """Launches each hook or tee defined for the current print queue."""
         exitcode = 0
+        self.isCancelled = 0    # did a prehook cancel the print job ?
+        self.gotSigTerm = 0
         signal.signal(signal.SIGTERM, self.sigtermHandler)
         serialize = self.isTrue(self.getPrintQueueOption(self.PrinterName, "serialize", ignore=1))
         for branchtype in ["prehook", "tee", "posthook"] :
