@@ -243,7 +243,7 @@ class CupsBackend :
             
     def logInfo(self, message, level="info") :        
         """Logs a message to CUPS' error_log file."""
-        sys.stderr.write("%s: %s v%s (PID %i / JobId %s) : %s\n" % (level.upper(), self.MyName, version, os.getpid(), self.JobId, message))
+        sys.stderr.write("%s: %s v%s (PID %i) : %s\n" % (level.upper(), self.MyName, version, os.getpid(), message))
         sys.stderr.flush()
         
     def logDebug(self, message) :    
