@@ -62,7 +62,18 @@ class CupsBackend :
         else :    
             self.config = FakeConfig()
             self.debug = 1      # no config, so force debug mode !
+        
+    def logDebug(self, message) :    
+        """Logs something to debug output if debug is enabled."""
+        if self.debug :
+            sys.stderr.write("DEBUG: %s\n" % message)
+            sys.stderr.flush()
             
+    def logInfo(self, message, level="info") :        
+        """Logs a message to CUPS' error_log file."""
+        sys.stderr.write("%s: %s\n" % (level.upper(), message))
+        sys.stderr.flush()
+        
     def isTrue(self, option) :        
         """Returns 1 if option is set to true, else 0."""
         if (option is not None) and (option.upper().strip() in ['Y', 'YES', '1', 'ON', 'T', 'TRUE']) :
@@ -80,18 +91,18 @@ class CupsBackend :
             else :
                 raise ConfigError, "Option %s not found in section global of %s" % (option, self.conffile)
                 
-    def getSectionOption(self, sectionname, option) :    
+    def getSectionOption(self, printqueuename, option) :    
         """Returns an option from the printer section, or the global section, or raises a ConfigError."""
         globaloption = self.getGlobalOption(option, ignore=1)
         try :
-            return self.config.get(sectionname, option, raw=1)
+            return self.config.get(printqueuename, option, raw=1)
         except (ConfigParser.NoSectionError, ConfigParser.NoOptionError) :    
             if globaloption is not None :
                 return globaloption
             else :
-                raise ConfigError, "Option %s not found in section [%s] of %s" % (option, sectionname, self.conffile)
+                raise ConfigError, "Option %s not found in section [%s] of %s" % (option, printqueuename, self.conffile)
                 
-    def enumTeeBranches(self, sectionname) :
+    def enumTeeBranches(self, printqueuename) :
         """Returns the list of branches for a particular section's Tee."""
         try :
             globalbranches = [ (k, v) for (k, v) in self.config.items("global") if k.startswith("tee_") ]
@@ -99,7 +110,7 @@ class CupsBackend :
             self.printInfo("Invalid configuration file : %s" % msg, "error")
             globalbranches = []
         try :
-            sectionbranches = [ (k, v) for (k, v) in self.config.items(sectionname) if k.startswith("tee_") ]
+            sectionbranches = [ (k, v) for (k, v) in self.config.items(printqueuename) if k.startswith("tee_") ]
         except ConfigParser.NoSectionError, msg :    
             self.printInfo("Invalid configuration file : %s" % msg, "error")
             sectionbranches = []
@@ -228,17 +239,6 @@ class CupsBackend :
                     sys.argv[3], \
                     sys.argv[5], \
                     backend)
-        
-    def logDebug(self, message) :    
-        """Logs something to debug output if debug is enabled."""
-        if self.debug :
-            sys.stderr.write("DEBUG: %s\n" % message)
-            sys.stderr.flush()
-            
-    def logInfo(self, message, level="info") :        
-        """Logs a message to CUPS' error_log file."""
-        sys.stderr.write("%s: %s\n" % (level.upper(), message))
-        sys.stderr.flush()
 
 if __name__ == "__main__" :    
     # This is a CUPS backend, we should act and die like a CUPS backend
