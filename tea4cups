@@ -36,7 +36,7 @@ import signal
 import time
 from struct import unpack
 
-version = "1.5alpha"
+version = "2.00"
 
 class TeeError(Exception):
     """Base exception for Tea4CUPS related stuff."""
@@ -537,6 +537,8 @@ class CupsBackend :
             status = self.runCommands(branchtype, branches, serialize)
             if status :
                 exitcode = status
+            if (branchtype == "prehook") and (os.environ.get("TEASTATUS", "") == "CANCELLED") :
+                break # We don't want to execute tees or posthooks in this case
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
         if not exitcode :
             self.logInfo("OK")
@@ -566,8 +568,12 @@ class CupsBackend :
                 if os.WIFEXITED(retcode) :
                     retcode = os.WEXITSTATUS(retcode)
                 if retcode :    
-                    self.logInfo("%s %s on printer %s didn't exit successfully." % (btypetitle, branch, self.PrinterName), "error")
-                    exitcode = 1
+                    if (btype == "prehook") and (retcode == 255) : # -1
+                        self.logInfo("Job %s cancelled by prehook %s" % (self.JobId, branch))
+                        os.environ["TEASTATUS"] = "CANCELLED" # and don't touch exitcode
+                    else :    
+                        self.logInfo("%s %s on printer %s didn't exit successfully." % (btypetitle, branch, self.PrinterName), "error")
+                        exitcode = 1
             self.logDebug("End serialized %ss" % btypetitle)
         else :        
             self.logDebug("Begin forked %ss" % btypetitle)
@@ -600,8 +606,12 @@ class CupsBackend :
                 if os.WIFEXITED(retcode) :
                     retcode = os.WEXITSTATUS(retcode)
                 if retcode :    
-                    self.logInfo("%s %s (PID %s) on printer %s didn't exit successfully." % (btypetitle, branch, childpid, self.PrinterName), "error")
-                    exitcode = 1
+                    if (btype == "prehook") and (retcode == 255) : # -1
+                        self.logInfo("Job %s cancelled by prehook %s" % (self.JobId, branch))
+                        os.environ["TEASTATUS"] = "CANCELLED" # and don't touch exitcode
+                    else :    
+                        self.logInfo("%s %s (PID %s) on printer %s didn't exit successfully." % (btypetitle, branch, childpid, self.PrinterName), "error")
+                        exitcode = 1
                 if branch == "Original backend" :    
                     os.environ["TEASTATUS"] = str(retcode)
             self.logDebug("End forked %ss" % btypetitle)
