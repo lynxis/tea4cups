@@ -218,7 +218,7 @@ class IPPMessage :
 class FakeConfig :    
     """Fakes a configuration file parser."""
     def get(self, section, option, raw=0) :
-        """Fakes the retrieval of a global option."""
+        """Fakes the retrieval of an option."""
         raise ConfigError, "Invalid configuration file : no option %s in section [%s]" % (option, section)
         
 class CupsBackend :
@@ -230,6 +230,9 @@ class CupsBackend :
         self.MyName = "Tea4CUPS"
         self.myname = "tea4cups"
         self.pid = os.getpid()
+        
+    def readConfig(self) :    
+        """Reads the configuration file."""
         confdir = os.environ.get("CUPS_SERVERROOT", ".") 
         self.conffile = os.path.join(confdir, "%s.conf" % self.myname)
         if os.path.isfile(self.conffile) :
@@ -873,6 +876,7 @@ if __name__ == "__main__" :
         sys.exit(1)
     else :    
         try :
+            wrapper.readConfig()
             wrapper.initBackend()
             wrapper.saveDatasAndCheckSum()
             wrapper.exportAttributes()

@@ -23,6 +23,8 @@ Tea4CUPS News :
    
   * 2.11 :
   
+    - More powerful error handling at startup time.
+    
     - Ignores errors in posthooks because the job was probably 
       successfully printed so no need to stop the print queue.
       We log a warning instead in this case.
