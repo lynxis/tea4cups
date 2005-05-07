@@ -23,6 +23,8 @@ Tea4CUPS News :
    
   * 2.11 :
   
+    - Now works with old releases of Python (>= 2.1)
+    
     - More powerful error handling at startup time.
     
     - Ignores errors in posthooks because the job was probably 

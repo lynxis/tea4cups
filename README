@@ -73,6 +73,8 @@ commands you use :
 In the case you want to use both Tea4CUPS and PyKota, you MUST install 
 PyKota v1.22alpha2 or higher to avoid a race condition.
 
+NB : Tea4CUPS requires a version of Python >= 2.1
+
 =============================================================================
 
 Installation :

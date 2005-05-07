@@ -283,11 +283,13 @@ class CupsBackend :
         """Returns the list of branchtypes branches for a particular section's."""
         branchbasename = "%s_" % branchtype.lower()
         try :
-            globalbranches = [ (k, v) for (k, v) in self.config.items("global") if k.startswith(branchbasename) ]
+            # globalbranches = [ (k, v) for (k, v) in self.config.items("global") if k.startswith(branchbasename) ]
+            globalbranches = [ (k, self.config.get("global", k)) for k in self.config.options("global") if k.startswith(branchbasename) ]
         except ConfigParser.NoSectionError, msg :    
             raise ConfigError, "Invalid configuration file : %s" % msg
         try :
-            sectionbranches = [ (k, v) for (k, v) in self.config.items(printqueuename) if k.startswith(branchbasename) ]
+            # sectionbranches = [ (k, v) for (k, v) in self.config.items(printqueuename) if k.startswith(branchbasename) ]
+            sectionbranches = [ (k, self.config.get(printqueuename, k)) for k in self.config.options(printqueuename) if k.startswith(branchbasename) ]
         except ConfigParser.NoSectionError, msg :    
             self.logInfo("No section for print queue %s : %s" % (printqueuename, msg))
             sectionbranches = []
