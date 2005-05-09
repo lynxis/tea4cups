@@ -24,6 +24,7 @@
 
 import sys
 import os
+import pwd
 import popen2
 import errno
 import md5
@@ -36,7 +37,7 @@ import signal
 import time
 from struct import unpack
 
-version = "2.11_unofficial"
+version = "2.12alpha_unofficial"
 
 class TeeError(Exception):
     """Base exception for Tea4CUPS related stuff."""
@@ -405,7 +406,7 @@ class CupsBackend :
                 raise TeeError, "Invalid DEVICE_URI : %s\n" % device_uri
         
         self.JobId = sys.argv[1].strip()
-        self.UserName = sys.argv[2].strip() or "root"
+        self.UserName = sys.argv[2].strip() or pwd.getpwuid(os.geteuid())[0] # use CUPS' user when printing test pages from CUPS' web interface
         self.Title = sys.argv[3].strip()
         self.Copies = int(sys.argv[4].strip())
         self.Options = sys.argv[5].strip()
