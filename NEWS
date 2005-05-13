@@ -23,6 +23,8 @@ Tea4CUPS News :
    
   * 2.12alpha :
   
+    - Greatly improved the IPP parser.
+    
     - When printing test pages from CUPS' web interface, the empty username
       is now overwritten with the username CUPS is running as.
     

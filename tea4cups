@@ -90,11 +90,13 @@ UNSUPPORTED_ATTRIBUTES_TAG = 0x05
 
 class IPPMessage :
     """A class for IPP message files."""
-    def __init__(self, data) :
+    def __init__(self, data, debug=0) :
         """Initializes an IPP Message object."""
+        self.debug = debug
         self.data = data
-        self._attributes = {}
-        self.curname = None
+        self.operation_attributes = {}
+        self.job_attributes = {}
+        self.printer_attributes = {}
         self.tags = [ None ] * 256      # by default all tags reserved
         
         # Delimiter tags
@@ -140,62 +142,59 @@ class IPPMessage :
         # now parses the IPP message
         self.parse()
         
-    def __getattr__(self, attrname) :    
-        """Allows self.attributes to return the attributes names."""
-        if attrname == "attributes" :
-            keys = self._attributes.keys()
-            keys.sort()
-            return keys
-        raise AttributeError, attrname
-            
-    def __getitem__(self, ippattrname) :    
-        """Fakes a dictionnary d['key'] notation."""
-        value = self._attributes.get(ippattrname)
-        if value is not None :
-            if len(value) == 1 :
-                value = value[0]
-        return value        
-    get = __getitem__    
-        
     def parseTag(self) :    
         """Extracts information from an IPP tag."""
         pos = self.position
         valuetag = self.tags[ord(self.data[pos])]
-        # print valuetag.get("name")
         pos += 1
         posend = pos2 = pos + 2
         namelength = unpack(">H", self.data[pos:pos2])[0]
         if not namelength :
-            name = self.curname
+            name = self._curname
         else :    
             posend += namelength
-            self.curname = name = self.data[pos2:posend]
+            self._curname = name = self.data[pos2:posend]
         pos2 = posend + 2
         valuelength = unpack(">H", self.data[posend:pos2])[0]
         posend = pos2 + valuelength
         value = self.data[pos2:posend]
-        oldval = self._attributes.setdefault(name, [])
-        oldval.append(value)
+        oldval = self._curdict.setdefault(name, [])
+        oldval.append((valuetag, value))
+        self.printInfo("%s(%s) %s" % (name, valuetag, value))
         return posend - self.position
         
     def operation_attributes_tag(self) : 
         """Indicates that the parser enters into an operation-attributes-tag group."""
+        self.printInfo("Start of operation_attributes_tag")
+        self._curdict = self.operation_attributes
         return self.parseTag()
         
     def job_attributes_tag(self) : 
-        """Indicates that the parser enters into a job-attributes-tag group."""
+        """Indicates that the parser enters into an operation-attributes-tag group."""
+        self.printInfo("Start of job_attributes_tag")
+        self._curdict = self.job_attributes
         return self.parseTag()
         
     def printer_attributes_tag(self) : 
-        """Indicates that the parser enters into a printer-attributes-tag group."""
+        """Indicates that the parser enters into an operation-attributes-tag group."""
+        self.printInfo("Start of printer_attributes_tag")
+        self._curdict = self.printer_attributes
         return self.parseTag()
         
+    def printInfo(self, msg) :    
+        """Prints a debug message."""
+        if self.debug :
+            sys.stderr.write("%s\n" % msg)
+            sys.stderr.flush()
+            
     def parse(self) :
         """Parses an IPP Message.
         
            NB : Only a subset of RFC2910 is implemented.
            We are only interested in textual informations for now anyway.
         """
+        self._curname = None
+        self._curdict = None
         self.version = "%s.%s" % (ord(self.data[0]), ord(self.data[1]))
         self.operation_id = "0x%04x" % unpack(">H", self.data[2:4])[0]
         self.request_id = "0x%08x" % unpack(">I", self.data[4:8])[0]
@@ -215,6 +214,13 @@ class IPPMessage :
                 tag = ord(self.data[self.position])
         except IndexError :
             raise IPPError, "Unexpected end of IPP message."
+            
+        # Now transform all one-element lists into single values
+        for attrtype in ("operation", "job", "printer") :
+            attrdict = getattr(self, "%s_attributes" % attrtype)
+            for (key, value) in attrdict.items() :
+                if len(value) == 1 :
+                    attrdict[key] = value[0]
             
 class FakeConfig :    
     """Fakes a configuration file parser."""
@@ -422,8 +428,9 @@ class CupsBackend :
         self.DataFile = os.path.join(self.Directory, "%s-%s-%s-%s" % (self.myname, self.PrinterName, self.UserName, self.JobId))
         (ippfilename, ippmessage) = self.parseIPPMessageFile()
         self.ControlFile = ippfilename
-        self.ClientHost = ippmessage.get("job-originating-host-name")
-        self.JobBilling = ippmessage.get("job-billing")
+        (chtype, self.ClientHost) = ippmessage.operation_attributes.get("job-originating-host-name", \
+                                          ippmessage.job_attributes.get("job-originating-host-name", (None, None)))
+        (jbtype, self.JobBilling) = ippmessage.job_attributes.get("job-billing", (None, None))
             
     def getCupsConfigDirectives(self, directives=[]) :
         """Retrieves some CUPS directives from its configuration file.
