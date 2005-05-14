@@ -165,7 +165,7 @@ class IPPMessage :
         posend = pos2 + valuelength
         value = self.data[pos2:posend]
         if tagtype in ("integer", "enum") :
-            value = unpack(">I", value)
+            value = unpack(">I", value)[0]
         oldval = self._curdict.setdefault(name, [])
         oldval.append((tagtype, value))
         self.printInfo("%s(%s) %s" % (name, tagtype, value))
