@@ -142,10 +142,16 @@ class IPPMessage :
         # now parses the IPP message
         self.parse()
         
+    def printInfo(self, msg) :    
+        """Prints a debug message."""
+        if self.debug :
+            sys.stderr.write("%s\n" % msg)
+            sys.stderr.flush()
+            
     def parseTag(self) :    
         """Extracts information from an IPP tag."""
         pos = self.position
-        valuetag = self.tags[ord(self.data[pos])]
+        tagtype = self.tags[ord(self.data[pos])]
         pos += 1
         posend = pos2 = pos + 2
         namelength = unpack(">H", self.data[pos:pos2])[0]
@@ -158,11 +164,11 @@ class IPPMessage :
         valuelength = unpack(">H", self.data[posend:pos2])[0]
         posend = pos2 + valuelength
         value = self.data[pos2:posend]
-        if valuetag in ("integer", "enum") :
+        if tagtype in ("integer", "enum") :
             value = unpack(">I", value)
         oldval = self._curdict.setdefault(name, [])
-        oldval.append((valuetag, value))
-        self.printInfo("%s(%s) %s" % (name, valuetag, value))
+        oldval.append((tagtype, value))
+        self.printInfo("%s(%s) %s" % (name, tagtype, value))
         return posend - self.position
         
     def operation_attributes_tag(self) : 
@@ -182,18 +188,13 @@ class IPPMessage :
         self.printInfo("Start of printer_attributes_tag")
         self._curdict = self.printer_attributes
         return self.parseTag()
-        
-    def printInfo(self, msg) :    
-        """Prints a debug message."""
-        if self.debug :
-            sys.stderr.write("%s\n" % msg)
-            sys.stderr.flush()
             
     def parse(self) :
         """Parses an IPP Message.
         
-           NB : Only a subset of RFC2910 is implemented.
-           We are only interested in textual informations for now anyway.
+           Implemented with RFC2910 as a reference.
+           NB : only a subset is actually implemented, but CUPS generated
+           message files are completely decoded.
         """
         self._curname = None
         self._curdict = None
