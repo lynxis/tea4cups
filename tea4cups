@@ -158,6 +158,8 @@ class IPPMessage :
         valuelength = unpack(">H", self.data[posend:pos2])[0]
         posend = pos2 + valuelength
         value = self.data[pos2:posend]
+        if valuetag in ("integer", "enum") :
+            value = unpack(">I", value)
         oldval = self._curdict.setdefault(name, [])
         oldval.append((valuetag, value))
         self.printInfo("%s(%s) %s" % (name, valuetag, value))
