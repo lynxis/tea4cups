@@ -32,7 +32,8 @@ Contributors :
 
   The following people contributed to the Tea4CUPS project :
   
-  - Peter Stuge - stuge@cdy.org
+  - Peter Stuge : allowed pre and post hooks to communicate through
+                  a pipe.
 
 ==============================================================
 
