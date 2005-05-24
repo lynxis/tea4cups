@@ -37,7 +37,7 @@ import signal
 import time
 from struct import unpack
 
-version = "2.12alpha_unofficial"
+version = "2.12alpha2_unofficial"
 
 class TeeError(Exception):
     """Base exception for Tea4CUPS related stuff."""
@@ -123,11 +123,11 @@ class IPPMessage :
         self.tags = [ None ] * 256      # by default all tags reserved
         
         # Delimiter tags
-        self.tags[0x01] = "operation-attributes-tag"
-        self.tags[0x02] = "job-attributes-tag"
-        self.tags[0x03] = "end-of-attributes-tag"
-        self.tags[0x04] = "printer-attributes-tag"
-        self.tags[0x05] = "unsupported-attributes-tag"
+        self.tags[OPERATION_ATTRIBUTES_TAG] = "operation-attributes-tag"
+        self.tags[JOB_ATTRIBUTES_TAG] = "job-attributes-tag"
+        self.tags[END_OF_ATTRIBUTES_TAG] = "end-of-attributes-tag"
+        self.tags[PRINTER_ATTRIBUTES_TAG] = "printer-attributes-tag"
+        self.tags[UNSUPPORTED_ATTRIBUTES_TAG] = "unsupported-attributes-tag"
         
         # out of band values
         self.tags[0x10] = "unsupported"
@@ -581,7 +581,10 @@ class CupsBackend :
         self.gotSigTerm = 0
         signal.signal(signal.SIGTERM, self.sigtermHandler)
         serialize = self.isTrue(self.getPrintQueueOption(self.PrinterName, "serialize", ignore=1))
+        self.pipe = os.pipe()
         for branchtype in ["prehook", "tee", "posthook"] :
+            if branchtype == "posthook" :
+                os.close(self.pipe[1])
             branches = self.enumBranches(self.PrinterName, branchtype)
             status = self.runCommands(branchtype, branches, serialize)
             if status :
@@ -593,11 +596,27 @@ class CupsBackend :
             if (branchtype == "prehook") and self.isCancelled :
                 break # We don't want to execute tees or posthooks in this case
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        try :
+            os.close(self.pipe[1])
+        except OSError :
+            pass
+        os.close(self.pipe[0])
         if not exitcode :
             self.logInfo("OK")
         else :    
             self.logInfo("An error occured, please check CUPS' error_log file.")
         return exitcode
+        
+    def pipedSystem(self, cmd, stdin=0, stdout=1) :
+        """Launches a command making a pipe available to it."""
+        # Code contributed by Peter Stuge on May 23rd 2005
+        pid = os.fork()
+        if pid == 0 :
+            os.dup2(stdin, 0)
+            os.dup2(stdout, 1)
+            os.execl("/bin/sh", "sh", "-c", cmd)
+            os.exit(1)
+        return os.waitpid(pid, 0)[1]
         
     def runCommands(self, btype, branches, serialize) :    
         """Runs the commands for a particular branch type."""
@@ -620,7 +639,10 @@ class CupsBackend :
                 if self.gotSigTerm :
                     break
                 self.logDebug("Launching %s : %s" % (branch, command))
-                retcode = os.system(command)
+                if btype != "posthook" :
+                    retcode = self.pipedSystem(command, 0, self.pipe[1])
+                else :
+                    retcode = self.pipedSystem(command, self.pipe[0])
                 self.logDebug("Exit code for %s %s on printer %s is %s" % (btype, branch, self.PrinterName, retcode))
                 if os.WIFEXITED(retcode) :
                     retcode = os.WEXITSTATUS(retcode)
