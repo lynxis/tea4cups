@@ -4,6 +4,7 @@
 # Tea4CUPS : Tee for CUPS
 #
 # (c) 2005 Jerome Alet <alet@librelogiciel.com>
+# (c) 2005 Peter Stuge <stuge-tea4cups@cdy.org>
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; either version 2 of the License, or
@@ -37,7 +38,7 @@ import signal
 import time
 from struct import unpack
 
-version = "2.12alpha2_unofficial"
+version = "2.12alpha3_unofficial"
 
 class TeeError(Exception):
     """Base exception for Tea4CUPS related stuff."""
@@ -319,12 +320,10 @@ class CupsBackend :
         """Returns the list of branchtypes branches for a particular section's."""
         branchbasename = "%s_" % branchtype.lower()
         try :
-            # globalbranches = [ (k, v) for (k, v) in self.config.items("global") if k.startswith(branchbasename) ]
             globalbranches = [ (k, self.config.get("global", k)) for k in self.config.options("global") if k.startswith(branchbasename) ]
         except ConfigParser.NoSectionError, msg :    
             raise ConfigError, "Invalid configuration file : %s" % msg
         try :
-            # sectionbranches = [ (k, v) for (k, v) in self.config.items(printqueuename) if k.startswith(branchbasename) ]
             sectionbranches = [ (k, self.config.get(printqueuename, k)) for k in self.config.options(printqueuename) if k.startswith(branchbasename) ]
         except ConfigParser.NoSectionError, msg :    
             self.logInfo("No section for print queue %s : %s" % (printqueuename, msg))
@@ -580,11 +579,18 @@ class CupsBackend :
         self.gotSigTerm = 0
         signal.signal(signal.SIGTERM, self.sigtermHandler)
         serialize = self.isTrue(self.getPrintQueueOption(self.PrinterName, "serialize", ignore=1))
-        self.pipe = os.pipe()
+        self.pipes = { 0: os.pipe() }
         for branchtype in ["prehook", "tee", "posthook"] :
             if branchtype == "posthook" :
-                os.close(self.pipe[1])
+                os.close(self.pipes[0][1])
             branches = self.enumBranches(self.PrinterName, branchtype)
+            for b in branches :
+                bname = b.split("_", 1)[1]
+                if branchtype != "posthook" and bname not in self.pipes :
+                    self.pipes[bname] = os.pipe()
+                else :
+                    if bname in self.pipes :
+                        os.close(self.pipes[bname][1])
             status = self.runCommands(branchtype, branches, serialize)
             if status :
                 if branchtype != "posthook" :
@@ -595,28 +601,48 @@ class CupsBackend :
             if (branchtype == "prehook") and self.isCancelled :
                 break # We don't want to execute tees or posthooks in this case
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
-        try :
-            os.close(self.pipe[1])
-        except OSError :
-            pass
-        os.close(self.pipe[0])
+        for p in self.pipes :
+            os.close(self.pipes[p][0])
+            try :
+                os.close(self.pipes[p][1])
+            except OSError :
+                pass
         if not exitcode :
             self.logInfo("OK")
         else :    
             self.logInfo("An error occured, please check CUPS' error_log file.")
         return exitcode
         
-    def pipedSystem(self, cmd, stdin=0, stdout=1) :
-        """Launches a command making a pipe available to it."""
-        # Code contributed by Peter Stuge on May 23rd 2005
+    def stdioRedirSystem(self, cmd, stdin=0, stdout=1) :
+        """Launches a command with stdio redirected."""
+        # Code contributed by Peter Stuge on May 23rd and June 7th 2005
         pid = os.fork()
         if pid == 0 :
-            os.dup2(stdin, 0)
-            os.dup2(stdout, 1)
-            os.execl("/bin/sh", "sh", "-c", cmd)
-            os.exit(1)
+            if stdin != 0 :
+                os.dup2(stdin, 0)
+                os.close(stdin)
+            if stdout != 1 :
+                os.dup2(stdout, 1)
+                os.close(stdout)
+            try :
+                os.execl("/bin/sh", "sh", "-c", cmd)
+            except OSError , msg :
+                self.logDebug("execl() failed: %s" % msg)
+            os._exit(1)
         return os.waitpid(pid, 0)[1]
         
+    def runCommand(self, branch, command) :
+        """Runs a particular branch command."""
+        # Code contributed by Peter Stuge on June 7th 2005
+        self.logDebug("Launching %s : %s" % (branch, command))
+        btype, bname = branch.split("_", 1)
+        if bname not in self.pipes :
+          bname = 0
+        if btype != "posthook" :
+            return self.stdioRedirSystem(command, 0, self.pipes[bname][1])
+        else :
+            return self.stdioRedirSystem(command, self.pipes[bname][0])
+
     def runCommands(self, btype, branches, serialize) :    
         """Runs the commands for a particular branch type."""
         exitcode = 0 
@@ -637,11 +663,7 @@ class CupsBackend :
                 command = branches[branch]
                 if self.gotSigTerm :
                     break
-                self.logDebug("Launching %s : %s" % (branch, command))
-                if btype != "posthook" :
-                    retcode = self.pipedSystem(command, 0, self.pipe[1])
-                else :
-                    retcode = self.pipedSystem(command, self.pipe[0])
+                retcode = self.runCommand(branch, command)
                 self.logDebug("Exit code for %s %s on printer %s is %s" % (btype, branch, self.PrinterName, retcode))
                 if os.WIFEXITED(retcode) :
                     retcode = os.WEXITSTATUS(retcode)
@@ -671,8 +693,7 @@ class CupsBackend :
                         self.logDebug("Launching original backend %s for printer %s" % (self.RealBackend, self.PrinterName))
                         sys.exit(self.runOriginalBackend())
                     else :
-                        self.logDebug("Launching %s : %s" % (branch, command))
-                        retcode = os.system(command)
+                        retcode = self.runCommand(branch, command)
                         if os.WIFEXITED(retcode) :
                             retcode = os.WEXITSTATUS(retcode)
                         else :    
