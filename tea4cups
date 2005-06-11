@@ -14,7 +14,7 @@
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307, USA.
@@ -48,16 +48,16 @@ class TeeError(Exception):
     def __repr__(self):
         return self.message
     __str__ = __repr__
-    
-class ConfigError(TeeError) :    
+
+class ConfigError(TeeError) :
     """Configuration related exceptions."""
-    pass 
-    
-class IPPError(TeeError) :    
+    pass
+
+class IPPError(TeeError) :
     """IPP related exceptions."""
-    pass 
-    
-# Some IPP constants    
+    pass
+
+# Some IPP constants
 OPERATION_ATTRIBUTES_TAG = 0x01
 JOB_ATTRIBUTES_TAG = 0x02
 END_OF_ATTRIBUTES_TAG = 0x03
@@ -66,9 +66,9 @@ UNSUPPORTED_ATTRIBUTES_TAG = 0x05
 
 class IPPMessage :
     """A class for IPP message files.
-    
+
        Usage :
-       
+
          fp = open("/var/spool/cups/c00001", "rb")
          message = IPPMessage(fp.read())
          fp.close()
@@ -85,9 +85,9 @@ class IPPMessage :
     attributes_types = ("operation", "job", "printer", "unsupported")
     def __init__(self, data, debug=0) :
         """Initializes and parses IPP Message object.
-        
+
            Parameters :
-           
+
              data : the IPP Message's content.
              debug : a boolean value to output debug info on stderr.
         """
@@ -96,26 +96,26 @@ class IPPMessage :
         for attrtype in self.attributes_types :
             setattr(self, "%s_attributes" % attrtype, {})
         self.tags = [ None ] * 256      # by default all tags reserved
-        
+
         # Delimiter tags
         self.tags[OPERATION_ATTRIBUTES_TAG] = "operation-attributes-tag"
         self.tags[JOB_ATTRIBUTES_TAG] = "job-attributes-tag"
         self.tags[END_OF_ATTRIBUTES_TAG] = "end-of-attributes-tag"
         self.tags[PRINTER_ATTRIBUTES_TAG] = "printer-attributes-tag"
         self.tags[UNSUPPORTED_ATTRIBUTES_TAG] = "unsupported-attributes-tag"
-        
+
         # out of band values
         self.tags[0x10] = "unsupported"
         self.tags[0x11] = "reserved-for-future-default"
         self.tags[0x12] = "unknown"
         self.tags[0x13] = "no-value"
-        
+
         # integer values
         self.tags[0x20] = "generic-integer"
         self.tags[0x21] = "integer"
         self.tags[0x22] = "boolean"
         self.tags[0x23] = "enum"
-        
+
         # octetString
         self.tags[0x30] = "octetString-with-an-unspecified-format"
         self.tags[0x31] = "dateTime"
@@ -124,7 +124,7 @@ class IPPMessage :
         self.tags[0x34] = "reserved-for-collection"
         self.tags[0x35] = "textWithLanguage"
         self.tags[0x36] = "nameWithLanguage"
-        
+
         # character strings
         self.tags[0x20] = "generic-character-string"
         self.tags[0x41] = "textWithoutLanguage"
@@ -136,17 +136,17 @@ class IPPMessage :
         self.tags[0x47] = "charset"
         self.tags[0x48] = "naturalLanguage"
         self.tags[0x49] = "mimeMediaType"
-        
+
         # now parses the IPP message
         self.parse()
-        
-    def printInfo(self, msg) :    
+
+    def printInfo(self, msg) :
         """Prints a debug message."""
         if self.debug :
             sys.stderr.write("%s\n" % msg)
             sys.stderr.flush()
-            
-    def parseTag(self) :    
+
+    def parseTag(self) :
         """Extracts information from an IPP tag."""
         pos = self.position
         tagtype = self.tags[ord(self.data[pos])]
@@ -155,7 +155,7 @@ class IPPMessage :
         namelength = unpack(">H", self.data[pos:pos2])[0]
         if not namelength :
             name = self._curname
-        else :    
+        else :
             posend += namelength
             self._curname = name = self.data[pos2:posend]
         pos2 = posend + 2
@@ -168,34 +168,34 @@ class IPPMessage :
         oldval.append((tagtype, value))
         self.printInfo("%s(%s) %s" % (name, tagtype, value))
         return posend - self.position
-        
-    def operation_attributes_tag(self) : 
+
+    def operation_attributes_tag(self) :
         """Indicates that the parser enters into an operation-attributes-tag group."""
         self.printInfo("Start of operation_attributes_tag")
         self._curdict = self.operation_attributes
         return self.parseTag()
-        
-    def job_attributes_tag(self) : 
+
+    def job_attributes_tag(self) :
         """Indicates that the parser enters into a job-attributes-tag group."""
         self.printInfo("Start of job_attributes_tag")
         self._curdict = self.job_attributes
         return self.parseTag()
-        
-    def printer_attributes_tag(self) : 
+
+    def printer_attributes_tag(self) :
         """Indicates that the parser enters into a printer-attributes-tag group."""
         self.printInfo("Start of printer_attributes_tag")
         self._curdict = self.printer_attributes
         return self.parseTag()
-        
-    def unsupported_attributes_tag(self) : 
+
+    def unsupported_attributes_tag(self) :
         """Indicates that the parser enters into an unsupported-attributes-tag group."""
         self.printInfo("Start of unsupported_attributes_tag")
         self._curdict = self.unsupported_attributes
         return self.parseTag()
-        
+
     def parse(self) :
         """Parses an IPP Message.
-        
+
            NB : Only a subset of RFC2910 is implemented.
         """
         self._curname = None
@@ -219,20 +219,20 @@ class IPPMessage :
                 tag = ord(self.data[self.position])
         except IndexError :
             raise IPPError, "Unexpected end of IPP message."
-            
+
         # Now transform all one-element lists into single values
         for attrtype in self.attributes_types :
             attrdict = getattr(self, "%s_attributes" % attrtype)
             for (key, value) in attrdict.items() :
                 if len(value) == 1 :
                     attrdict[key] = value[0]
-                    
-class FakeConfig :    
+
+class FakeConfig :
     """Fakes a configuration file parser."""
     def get(self, section, option, raw=0) :
         """Fakes the retrieval of an option."""
         raise ConfigError, "Invalid configuration file : no option %s in section [%s]" % (option, section)
-        
+
 class CupsBackend :
     """Base class for tools with no database access."""
     def __init__(self) :
@@ -242,68 +242,68 @@ class CupsBackend :
         self.MyName = "Tea4CUPS"
         self.myname = "tea4cups"
         self.pid = os.getpid()
-        
-    def readConfig(self) :    
+
+    def readConfig(self) :
         """Reads the configuration file."""
-        confdir = os.environ.get("CUPS_SERVERROOT", ".") 
+        confdir = os.environ.get("CUPS_SERVERROOT", ".")
         self.conffile = os.path.join(confdir, "%s.conf" % self.myname)
         if os.path.isfile(self.conffile) :
             self.config = ConfigParser.ConfigParser()
             self.config.read([self.conffile])
             self.debug = self.isTrue(self.getGlobalOption("debug", ignore=1))
-        else :    
+        else :
             self.config = FakeConfig()
             self.debug = 1      # no config, so force debug mode !
-            
-    def logInfo(self, message, level="info") :        
+
+    def logInfo(self, message, level="info") :
         """Logs a message to CUPS' error_log file."""
         try :
             sys.stderr.write("%s: %s v%s (PID %i) : %s\n" % (level.upper(), self.MyName, version, os.getpid(), message))
             sys.stderr.flush()
         except IOError :
             pass
-        
-    def logDebug(self, message) :    
+
+    def logDebug(self, message) :
         """Logs something to debug output if debug is enabled."""
         if self.debug :
             self.logInfo(message, level="debug")
-            
-    def isTrue(self, option) :        
+
+    def isTrue(self, option) :
         """Returns 1 if option is set to true, else 0."""
         if (option is not None) and (option.upper().strip() in ['Y', 'YES', '1', 'ON', 'T', 'TRUE']) :
             return 1
-        else :    
+        else :
             return 0
-                        
-    def getGlobalOption(self, option, ignore=0) :    
+
+    def getGlobalOption(self, option, ignore=0) :
         """Returns an option from the global section, or raises a ConfigError if ignore is not set, else returns None."""
         try :
             return self.config.get("global", option, raw=1)
-        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError) :    
+        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError) :
             if not ignore :
                 raise ConfigError, "Option %s not found in section global of %s" % (option, self.conffile)
-                
-    def getPrintQueueOption(self, printqueuename, option, ignore=0) :    
+
+    def getPrintQueueOption(self, printqueuename, option, ignore=0) :
         """Returns an option from the printer section, or the global section, or raises a ConfigError."""
         globaloption = self.getGlobalOption(option, ignore=1)
         try :
             return self.config.get(printqueuename, option, raw=1)
-        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError) :    
+        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError) :
             if globaloption is not None :
                 return globaloption
             elif not ignore :
                 raise ConfigError, "Option %s not found in section [%s] of %s" % (option, printqueuename, self.conffile)
-                
+
     def enumBranches(self, printqueuename, branchtype="tee") :
         """Returns the list of branchtypes branches for a particular section's."""
         branchbasename = "%s_" % branchtype.lower()
         try :
             globalbranches = [ (k, self.config.get("global", k)) for k in self.config.options("global") if k.startswith(branchbasename) ]
-        except ConfigParser.NoSectionError, msg :    
+        except ConfigParser.NoSectionError, msg :
             raise ConfigError, "Invalid configuration file : %s" % msg
         try :
             sectionbranches = [ (k, self.config.get(printqueuename, k)) for k in self.config.options(printqueuename) if k.startswith(branchbasename) ]
-        except ConfigParser.NoSectionError, msg :    
+        except ConfigParser.NoSectionError, msg :
             self.logInfo("No section for print queue %s : %s" % (printqueuename, msg))
             sectionbranches = []
         branches = {}
@@ -311,17 +311,17 @@ class CupsBackend :
             value = v.strip()
             if value :
                 branches[k] = value
-        for (k, v) in sectionbranches :    
+        for (k, v) in sectionbranches :
             value = v.strip()
             if value :
                 branches[k] = value # overwrite any global option or set a new value
-            else :    
+            else :
                 del branches[k] # empty value disables a global option
         return branches
-        
-    def discoverOtherBackends(self) :    
+
+    def discoverOtherBackends(self) :
         """Discovers the other CUPS backends.
-        
+
            Executes each existing backend in turn in device enumeration mode.
            Returns the list of available backends.
         """
@@ -341,29 +341,29 @@ class CupsBackend :
             try :
                 # see if the pid contained in the lock file is still running
                 os.kill(pid, 0)
-            except OSError, e :    
+            except OSError, e :
                 if e.errno != errno.EPERM :
                     # process doesn't exist anymore
                     os.remove(lockfilename)
-            
+
         if not os.path.exists(lockfilename) :
             lockfile = open(lockfilename, "w")
             lockfile.write("%i" % self.pid)
             lockfile.close()
             allbackends = [ os.path.join(directory, b) \
-                                for b in os.listdir(directory) 
+                                for b in os.listdir(directory)
                                     if os.access(os.path.join(directory, b), os.X_OK) \
-                                        and (b != myname)] 
-            for backend in allbackends :                            
+                                        and (b != myname)]
+            for backend in allbackends :
                 answer = os.popen(backend, "r")
                 try :
                     devices = [line.strip() for line in answer.readlines()]
-                except :    
+                except :
                     devices = []
                 status = answer.close()
                 if status is None :
                     for d in devices :
-                        # each line is of the form : 
+                        # each line is of the form :
                         # 'xxxx xxxx "xxxx xxx" "xxxx xxx"'
                         # so we have to decompose it carefully
                         fdevice = cStringIO.StringIO(d)
@@ -380,9 +380,9 @@ class CupsBackend :
                         fdevice.close()
                         try :
                             (devicetype, device, name, fullname) = arguments
-                        except ValueError :    
+                        except ValueError :
                             pass    # ignore this 'bizarre' device
-                        else :    
+                        else :
                             if name.startswith('"') and name.endswith('"') :
                                 name = name[1:-1]
                             if fullname.startswith('"') and fullname.endswith('"') :
@@ -393,30 +393,30 @@ class CupsBackend :
         available.append('direct %s:// "%s+Nothing" "%s managed Virtual Printer"' \
                              % (self.myname, self.MyName, self.MyName))
         return available
-                        
-    def initBackend(self) :    
+
+    def initBackend(self) :
         """Initializes the backend's attributes."""
-        # check that the DEVICE_URI environment variable's value is 
+        # check that the DEVICE_URI environment variable's value is
         # prefixed with self.myname otherwise don't touch it.
-        # If this is the case, we have to remove the prefix from 
-        # the environment before launching the real backend 
+        # If this is the case, we have to remove the prefix from
+        # the environment before launching the real backend
         muststartwith = "%s:" % self.myname
         device_uri = os.environ.get("DEVICE_URI", "")
         if device_uri.startswith(muststartwith) :
             fulldevice_uri = device_uri[:]
             device_uri = fulldevice_uri[len(muststartwith):]
             for i in range(2) :
-                if device_uri.startswith("/") :  
+                if device_uri.startswith("/") :
                     device_uri = device_uri[1:]
         try :
-            (backend, destination) = device_uri.split(":", 1) 
-        except ValueError :    
+            (backend, destination) = device_uri.split(":", 1)
+        except ValueError :
             if not device_uri :
                 self.logDebug("Not attached to an existing print queue.")
                 backend = ""
-            else :    
+            else :
                 raise TeeError, "Invalid DEVICE_URI : %s\n" % device_uri
-        
+
         self.JobId = sys.argv[1].strip()
         self.UserName = sys.argv[2].strip() or pwd.getpwuid(os.geteuid())[0] # use CUPS' user when printing test pages from CUPS' web interface
         self.Title = sys.argv[3].strip()
@@ -424,9 +424,9 @@ class CupsBackend :
         self.Options = sys.argv[5].strip()
         if len(sys.argv) == 7 :
             self.InputFile = sys.argv[6] # read job's datas from file
-        else :    
+        else :
             self.InputFile = None        # read job's datas from stdin
-            
+
         self.RealBackend = backend
         self.DeviceURI = device_uri
         self.PrinterName = os.environ.get("PRINTER", "")
@@ -437,60 +437,60 @@ class CupsBackend :
         (chtype, self.ClientHost) = ippmessage.operation_attributes.get("job-originating-host-name", \
                                           ippmessage.job_attributes.get("job-originating-host-name", (None, None)))
         (jbtype, self.JobBilling) = ippmessage.job_attributes.get("job-billing", (None, None))
-            
+
     def getCupsConfigDirectives(self, directives=[]) :
         """Retrieves some CUPS directives from its configuration file.
-        
-           Returns a mapping with lowercased directives as keys and 
+
+           Returns a mapping with lowercased directives as keys and
            their setting as values.
         """
-        dirvalues = {} 
+        dirvalues = {}
         cupsroot = os.environ.get("CUPS_SERVERROOT", "/etc/cups")
         cupsdconf = os.path.join(cupsroot, "cupsd.conf")
         try :
             conffile = open(cupsdconf, "r")
-        except IOError :    
+        except IOError :
             raise TeeError, "Unable to open %s" % cupsdconf
-        else :    
+        else :
             for line in conffile.readlines() :
                 linecopy = line.strip().lower()
                 for di in [d.lower() for d in directives] :
                     if linecopy.startswith("%s " % di) :
                         try :
                             val = line.split()[1]
-                        except :    
+                        except :
                             pass # ignore errors, we take the last value in any case.
-                        else :    
+                        else :
                             dirvalues[di] = val
-            conffile.close()            
-        return dirvalues       
-            
-    def parseIPPMessageFile(self) :        
+            conffile.close()
+        return dirvalues
+
+    def parseIPPMessageFile(self) :
         """Parses the IPP message file and returns a tuple (filename, parsedvalue)."""
         cupsdconf = self.getCupsConfigDirectives(["RequestRoot"])
         requestroot = cupsdconf.get("requestroot", "/var/spool/cups")
         if (len(self.JobId) < 5) and self.JobId.isdigit() :
             ippmessagefile = "c%05i" % int(self.JobId)
-        else :    
+        else :
             ippmessagefile = "c%s" % self.JobId
         ippmessagefile = os.path.join(requestroot, ippmessagefile)
         ippmessage = {}
         try :
             ippdatafile = open(ippmessagefile)
-        except :    
+        except :
             self.logInfo("Unable to open IPP message file %s" % ippmessagefile, "warn")
-        else :    
+        else :
             self.logDebug("Parsing of IPP message file %s begins." % ippmessagefile)
             try :
                 ippmessage = IPPMessage(ippdatafile.read())
-            except IPPError, msg :    
+            except IPPError, msg :
                 self.logInfo("Error while parsing %s : %s" % (ippmessagefile, msg), "warn")
-            else :    
+            else :
                 self.logDebug("Parsing of IPP message file %s ends." % ippmessagefile)
             ippdatafile.close()
         return (ippmessagefile, ippmessage)
-                
-    def exportAttributes(self) :    
+
+    def exportAttributes(self) :
         """Exports our backend's attributes to the environment."""
         os.environ["DEVICE_URI"] = self.DeviceURI       # WARNING !
         os.environ["TEAPRINTERNAME"] = self.PrinterName
@@ -507,7 +507,7 @@ class CupsBackend :
         os.environ["TEAINPUTFILE"] = self.InputFile or ""
         os.environ["TEABILLING"] = self.JobBilling or ""
         os.environ["TEACONTROLFILE"] = self.ControlFile
-        
+
     def saveDatasAndCheckSum(self) :
         """Saves the input datas into a static file."""
         self.logDebug("Duplicating data stream into %s" % self.DataFile)
@@ -515,27 +515,27 @@ class CupsBackend :
         if self.InputFile is not None :
             infile = open(self.InputFile, "rb")
             mustclose = 1
-        else :    
+        else :
             infile = sys.stdin
         CHUNK = 64*1024         # read 64 Kb at a time
         dummy = 0
         sizeread = 0
         checksum = md5.new()
-        outfile = open(self.DataFile, "wb")    
+        outfile = open(self.DataFile, "wb")
         while 1 :
-            data = infile.read(CHUNK) 
+            data = infile.read(CHUNK)
             if not data :
                 break
-            sizeread += len(data)    
+            sizeread += len(data)
             outfile.write(data)
-            checksum.update(data)    
+            checksum.update(data)
             if not (dummy % 32) : # Only display every 2 Mb
                 self.logDebug("%s bytes saved..." % sizeread)
-            dummy += 1    
+            dummy += 1
         outfile.close()
-        if mustclose :    
+        if mustclose :
             infile.close()
-        self.JobSize = sizeread    
+        self.JobSize = sizeread
         self.JobMD5Sum = checksum.hexdigest()
         self.logDebug("Job %s is %s bytes long." % (self.JobId, self.JobSize))
         self.logDebug("Job %s MD5 sum is %s" % (self.JobId, self.JobMD5Sum))
@@ -544,13 +544,13 @@ class CupsBackend :
         """Cleans up the place."""
         if not self.isTrue(self.getPrintQueueOption(self.PrinterName, "keepfiles", ignore=1)) :
             os.remove(self.DataFile)
-            
+
     def sigtermHandler(self, signum, frame) :
         """Sets an attribute whenever SIGTERM is received."""
         self.gotSigTerm = 1
         self.logInfo("SIGTERM received for Job %s." % self.JobId)
-        
-    def runBranches(self) :         
+
+    def runBranches(self) :
         """Launches each hook defined for the current print queue."""
         self.isCancelled = 0    # did a prehook cancel the print job ?
         self.gotSigTerm = 0
@@ -576,10 +576,10 @@ class CupsBackend :
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
         if not retcode :
             self.logInfo("OK")
-        else :    
+        else :
             self.logInfo("An error occured, please check CUPS' error_log file.")
         return retcode
-        
+
     def stdioRedirSystem(self, cmd, stdin=0, stdout=1) :
         """Launches a command with stdio redirected."""
         # Code contributed by Peter Stuge on May 23rd and June 7th 2005
@@ -600,7 +600,7 @@ class CupsBackend :
         if os.WIFEXITED(status) :
             return os.WEXITSTATUS(status)
         return -1
-        
+
     def runCommand(self, branch, command) :
         """Runs a particular branch command."""
         # Code contributed by Peter Stuge on June 7th 2005
@@ -613,12 +613,12 @@ class CupsBackend :
         else :
             return self.stdioRedirSystem(command, self.pipes[bname][0])
 
-    def runCommands(self, btype, branches, serialize) :    
+    def runCommands(self, btype, branches, serialize) :
         """Runs the commands for a particular branch type."""
-        exitcode = 0 
+        exitcode = 0
         btype = btype.lower()
         btypetitle = btype.title()
-        branchlist = branches.keys()    
+        branchlist = branches.keys()
         branchlist.sort()
         if serialize :
             self.logDebug("Begin serialized %ss" % btypetitle)
@@ -627,15 +627,15 @@ class CupsBackend :
                     break
                 retcode = self.runCommand(branch, branches[branch])
                 self.logDebug("Exit code for %s %s on printer %s is %s" % (btype, branch, self.PrinterName, retcode))
-                if retcode :    
+                if retcode :
                     if (btype == "prehook") and (retcode == 255) : # -1
                         self.logInfo("Job %s cancelled by prehook %s" % (self.JobId, branch))
                         self.isCancelled = 1
-                    else :    
+                    else :
                         self.logInfo("%s %s on printer %s didn't exit successfully." % (btypetitle, branch, self.PrinterName), "error")
                         exitcode = 1
             self.logDebug("End serialized %ss" % btypetitle)
-        else :        
+        else :
             self.logDebug("Begin forked %ss" % btypetitle)
             pids = {}
             for branch in branchlist :
@@ -644,7 +644,7 @@ class CupsBackend :
                 pid = os.fork()
                 if pid :
                     pids[branch] = pid
-                else :    
+                else :
                     os._exit(self.runCommand(branch, branches[branch]))
             for (branch, pid) in pids.items() :
                 retcode = os.waitpid(pid, 0)[1]
@@ -653,17 +653,17 @@ class CupsBackend :
                 else :
                     retcode = -1
                 self.logDebug("Exit code for %s %s (PID %s) on printer %s is %s" % (btype, branch, pid, self.PrinterName, retcode))
-                if retcode :    
+                if retcode :
                     if (btype == "prehook") and (retcode == 255) : # -1
                         self.logInfo("Job %s cancelled by prehook %s" % (self.JobId, branch))
                         self.isCancelled = 1
-                    else :    
+                    else :
                         self.logInfo("%s %s (PID %s) on printer %s didn't exit successfully." % (btypetitle, branch, pid, self.PrinterName), "error")
                         exitcode = 1
             self.logDebug("End forked %ss" % btypetitle)
         return exitcode
-        
-    def runOriginalBackend(self) :    
+
+    def runOriginalBackend(self) :
         """Launches the original backend."""
         originalbackend = os.path.join(os.path.split(sys.argv[0])[0], self.RealBackend)
         arguments = [os.environ["DEVICE_URI"]] + sys.argv[1:]
@@ -694,23 +694,23 @@ class CupsBackend :
             if status :
               self.logInfo("CUPS backend %s returned %d." % (originalbackend, status), "error")
             return status
-        elif not killed :    
+        elif not killed :
             self.logInfo("CUPS backend %s died abnormally." % originalbackend, "error")
             return -1
-        else :    
+        else :
             return 1
-        
-if __name__ == "__main__" :    
+
+if __name__ == "__main__" :
     # This is a CUPS backend, we should act and die like a CUPS backend
     wrapper = CupsBackend()
     if len(sys.argv) == 1 :
         print "\n".join(wrapper.discoverOtherBackends())
-        sys.exit(0)                
-    elif len(sys.argv) not in (6, 7) :    
+        sys.exit(0)
+    elif len(sys.argv) not in (6, 7) :
         sys.stderr.write("ERROR: %s job-id user title copies options [file]\n"\
                               % sys.argv[0])
         sys.exit(1)
-    else :    
+    else :
         try :
             wrapper.readConfig()
             wrapper.initBackend()
@@ -718,9 +718,9 @@ if __name__ == "__main__" :
             wrapper.exportAttributes()
             retcode = wrapper.runBranches()
             wrapper.cleanUp()
-        except SystemExit, e :    
+        except SystemExit, e :
             retcode = e.code
-        except :    
+        except :
             import traceback
             lines = []
             for line in traceback.format_exception(*sys.exc_info()) :
