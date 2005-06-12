@@ -556,12 +556,12 @@ class CupsBackend :
         self.gotSigTerm = 0
         signal.signal(signal.SIGTERM, self.sigtermHandler)
         serialize = self.isTrue(self.getPrintQueueOption(self.PrinterName, "serialize", ignore=1))
-        self.pipes = { 0: (0,1) }
+        self.pipes = { 0: (0, 1) }
         branches = self.enumBranches(self.PrinterName, "prehook")
         for b in branches :
             self.pipes[b.split("_", 1)[1]] = os.pipe()
         retcode = self.runCommands("prehook", branches, serialize)
-        for p in self.pipes.items()[1:] :
+        for p in [ (k, v) for (k, v) in self.pipes.items() if k != 0 ] :
             os.close(p[1][1])
         if not self.isCancelled and not self.gotSigTerm :
             if self.RealBackend :
@@ -571,7 +571,7 @@ class CupsBackend :
                 branches = self.enumBranches(self.PrinterName, "posthook")
                 if self.runCommands("posthook", branches, serialize) :
                     self.logInfo("An error occured during the execution of posthooks.", "warn")
-        for p in self.pipes.items()[1:] :
+        for p in [ (k, v) for (k, v) in self.pipes.items() if k != 0 ] :
             os.close(p[1][0])
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
         if not retcode :
@@ -606,7 +606,7 @@ class CupsBackend :
         # Code contributed by Peter Stuge on June 7th 2005
         self.logDebug("Launching %s : %s" % (branch, command))
         btype, bname = branch.split("_", 1)
-        if bname not in self.pipes :
+        if bname not in self.pipes.keys() :
             bname = 0
         if btype == "prehook" :
             return self.stdioRedirSystem(command, 0, self.pipes[bname][1])
@@ -676,7 +676,7 @@ class CupsBackend :
                 os.dup2(f.fileno(), 0)
                 f.close()
             try :
-                os.execve(originalbackend,arguments,os.environ)
+                os.execve(originalbackend, arguments, os.environ)
             except OSError, msg :
                 self.logDebug("execve() failed: %s" % msg)
             os._exit(-1)
@@ -692,10 +692,12 @@ class CupsBackend :
         if os.WIFEXITED(status) :
             status = os.WEXITSTATUS(status)
             if status :
-              self.logInfo("CUPS backend %s returned %d." % (originalbackend, status), "error")
+              self.logInfo("CUPS backend %s returned %d." % (originalbackend,\
+                                                             status), "error")
             return status
         elif not killed :
-            self.logInfo("CUPS backend %s died abnormally." % originalbackend, "error")
+            self.logInfo("CUPS backend %s died abnormally." % originalbackend,\
+                                                              "error")
             return -1
         else :
             return 1
@@ -725,7 +727,9 @@ if __name__ == "__main__" :
             lines = []
             for line in traceback.format_exception(*sys.exc_info()) :
                 lines.extend([l for l in line.split("\n") if l])
-            msg = "ERROR: ".join(["%s (PID %s) : %s\n" % (wrapper.MyName, wrapper.pid, l) for l in (["ERROR: Tea4CUPS v%s" % version] + lines)])
+            msg = "ERROR: ".join(["%s (PID %s) : %s\n" % (wrapper.MyName, \
+                                                          wrapper.pid, l) \
+                        for l in (["ERROR: Tea4CUPS v%s" % version] + lines)])
             sys.stderr.write(msg)
             sys.stderr.flush()
             retcode = 1
