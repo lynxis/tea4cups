@@ -29,25 +29,25 @@ CUPS backends, files or pipes.
 This for example allows you to output the same print job on several
 printers at the same time, which is not possible with CUPS.
 
-Another possibility would be for example to send the same document to 
+Another possibility would be for example to send the same document to
 a printer, a PDF generator, a Fax, and as an attachment to an email
 message, all of this by printing it a single time.
 
-Tea4CUPS allows this by permitting you to easily plug your own 
-commands into the very last stage of CUPS' filtering chain. 
+Tea4CUPS allows this by permitting you to easily plug your own
+commands into the very last stage of CUPS' filtering chain.
 
 Tea4CUPS provides two ways to launch commands :
 
-        - prehooks : these are guaranteed to be launched before the 
+        - prehooks : these are guaranteed to be launched before the
                      print job is sent to the real printer.
-                     Any prehook which exits -1 can cancel the 
+                     Any prehook which exits -1 can cancel the
                      print job.
-                     
+
         - posthooks : these are guaranteed to be launched after the
                       print job has been sent to the real printer,
                       unless the job was previously cancelled by a
                       prehook.
-                 
+
 To help your own commands, Tea4CUPS makes available as part of the
 environment several variables which can be used from the
 commands you use :
@@ -66,10 +66,10 @@ commands you use :
         TEAINPUTFILE : Print job's data file or empty when job read from stdin.
         TEABILLING : Job's billing code (lp -o job-billing=SomeCode file.ps)
         TEACONTROLFILE : Job's IPP message file (usually /var/spool/cups/c?????)
-        TEASTATUS : Original CUPS backend's exit code : ONLY AVAILABLE FROM 
+        TEASTATUS : Original CUPS backend's exit code : ONLY AVAILABLE FROM
                     posthooks, obviously.
-        
-In the case you want to use both Tea4CUPS and PyKota, you MUST install 
+
+In the case you want to use both Tea4CUPS and PyKota, you MUST install
 PyKota v1.22alpha2 or higher to avoid a race condition.
 
 NB : Tea4CUPS requires a version of Python >= 2.1
@@ -80,62 +80,62 @@ Installation :
 --------------
 
   0 - Download Tea4CUPS from :
-  
+
         http://www.librelogiciel.com/software/Tea4CUPS/action_Presentation
-        
-      and extract it :  
-      
+
+      and extract it :
+
         $ tar -zxf tea4cups-x.yy.tar.gz
-        
+
         where x.yy is Tea4CUPS' version number.
-        
-  1 - Copy the 'tea4cups' command into CUPS' backend directory, 
+
+  1 - Copy the 'tea4cups' command into CUPS' backend directory,
       for example :
-      
+
         $ cp tea4cups /usr/lib/cups/backend
-        
+
   2 - Restart CUPS in order for this new backend to be detected.
       NB : For this to work you need CUPS 1.1.15 or higher.
       You can use Tea4CUPS with older versions if you want, but
       without autodetection.
-  
-  3 - Either from CUPS' web interface, add new printers with 
+
+  3 - Either from CUPS' web interface, add new printers with
       'Tea4CUPS managed' in front of the device's name.
-          
-      Or by directly modifying CUPS' printers.conf file, prepend    
+
+      Or by directly modifying CUPS' printers.conf file, prepend
       each DeviceURI value with 'tea4cups://', and restart CUPS.
       (Use this last method if autodetection doesn't work because
       the version of CUPS you use is too old)
-      
-  4 - Copy tea4cups.conf into CUPS' configuration directory (where    
+
+  4 - Copy tea4cups.conf into CUPS' configuration directory (where
       cupsd.conf resides) :
-      
+
         $ cp tea4cups.conf /etc/cups/
-        
-  5 - Modify tea4cups.conf to suit your needs. Several examples      
+
+  5 - Modify tea4cups.conf to suit your needs. Several examples
       are included.
-      
-  6 - There's no 6 !    
-  
+
+  6 - There's no 6 !
+
 =============================================================================
 
-Troubleshooting : 
+Troubleshooting :
 -----------------
 
   1 - Set "LogLevel debug2" in CUPS' cupsd.conf
-  
+
   2 - Restart CUPS.
-  
+
   3 - Set "debug: yes" in the [global] section of tea4cups.conf
-  
+
   4 - Print something on a print queue managed
       by Tea4CUPS.
-      
+
   5 - Look at CUPS' error_log file for diagnostic and error messages.
-  
+
 =============================================================================
 
-CUPS (Common UNIX(r) Printing System) is trademark property of Easy Software 
+CUPS (Common UNIX(r) Printing System) is trademark property of Easy Software
 Products.
 
 You can download CUPS from :
@@ -143,5 +143,5 @@ You can download CUPS from :
         http://www.cups.org
 
 =============================================================================
-    
+
 Please e-mail bugs to : alet@librelogiciel.com (Jerome Alet)

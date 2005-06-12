@@ -20,32 +20,32 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 =============================================================================
 
 Tea4CUPS News :
-   
+
   * 2.12alpha :
-  
+
     - Greatly improved the IPP parser.
-    
+
     - When printing test pages from CUPS' web interface, the empty username
       is now overwritten with the username CUPS is running as.
-    
+
   * 2.11 :
-  
+
     - Now works with old releases of Python (>= 2.1)
-    
+
     - More powerful error handling at startup time.
-    
-    - Ignores errors in posthooks because the job was probably 
+
+    - Ignores errors in posthooks because the job was probably
       successfully printed so no need to stop the print queue.
       We log a warning instead in this case.
-      
-  * 2.10 : 
-  
+
+  * 2.10 :
+
     - Makes the IPP message filename and the Job's billing code available.
-    
+
   * 2.00 :
 
     - Introduces the notions of pre and post hooks.
-    
+
     - Prehooks can decide to entirely cancel the print job if needed.
 
     - Original CUPS backend's exit code is available in posthooks.
