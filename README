@@ -16,12 +16,11 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307, USA.
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 
 =============================================================================
 
-Tea4CUPS is the equivalent of the *nix command 'tee', but as a CUPS
-backend.
+Tea4CUPS resembles the *nix command 'tee', but is a CUPS backend.
 
 Tea4CUPS behaves just like any other CUPS backend, but allows you to
 transparently send print jobs' datas to any number of outputs : other
@@ -34,17 +33,16 @@ Another possibility would be for example to send the same document to
 a printer, a PDF generator, a Fax, and as an attachment to an email
 message, all of this by printing it a single time.
 
-Tea4CUPS provides three ways to launch commands :
+Tea4CUPS allows this by permitting you to easily plug your own 
+commands into the very last stage of CUPS' filtering chain. 
+
+Tea4CUPS provides two ways to launch commands :
 
         - prehooks : these are guaranteed to be launched before the 
                      print job is sent to the real printer.
                      Any prehook which exits -1 can cancel the 
                      print job.
                      
-        - tees : these are launched at the same time the job is being             
-                 sent to the real printer, unless the job was 
-                 previously cancelled by a prehook.
-                 
         - posthooks : these are guaranteed to be launched after the
                       print job has been sent to the real printer,
                       unless the job was previously cancelled by a
@@ -96,13 +94,18 @@ Installation :
       
         $ cp tea4cups /usr/lib/cups/backend
         
-  2 - Restart CUPS in order for this new backend to be detected.        
+  2 - Restart CUPS in order for this new backend to be detected.
+      NB : For this to work you need CUPS 1.1.15 or higher.
+      You can use Tea4CUPS with older versions if you want, but
+      without autodetection.
   
   3 - Either from CUPS' web interface, add new printers with 
       'Tea4CUPS managed' in front of the device's name.
           
       Or by directly modifying CUPS' printers.conf file, prepend    
       each DeviceURI value with 'tea4cups://', and restart CUPS.
+      (Use this last method if autodetection doesn't work because
+      the version of CUPS you use is too old)
       
   4 - Copy tea4cups.conf into CUPS' configuration directory (where    
       cupsd.conf resides) :
