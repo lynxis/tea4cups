@@ -38,7 +38,7 @@ import signal
 import time
 from struct import unpack
 
-version = "2.12alpha3_unofficial"
+version = "3.00_unofficial"
 
 class TeeError(Exception):
     """Base exception for Tea4CUPS related stuff."""
@@ -776,7 +776,7 @@ class CupsBackend :
         pid = os.fork()
         if pid == 0 :
             if self.InputFile is None :
-                f=open(self.dataFile, "rb")
+                f = open(self.dataFile, "rb")
                 os.dup2(f.fileno(), 0)
                 f.close()
             try :
@@ -790,7 +790,7 @@ class CupsBackend :
             try :
                 status = os.waitpid(pid, 0)[1]
             except OSError, (err, msg) :
-                if err == 4 and self.gotSigTerm :
+                if (err == 4) and self.gotSigTerm :
                     os.kill(pid, signal.SIGTERM)
                     killed = 1
         if os.WIFEXITED(status) :

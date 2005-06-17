@@ -3,6 +3,7 @@
 Tea4CUPS : Tee for CUPS
 
 (c) 2005 Jerome Alet <alet@librelogiciel.com>
+(c) 2005 Peter Stuge <stuge-tea4cups@cdy.org>
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2 of the License, or
@@ -21,6 +22,14 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 
 Tea4CUPS News :
 
+  * 3.00 :
+  
+    - Tees don't exist anymore. Only prehooks and posthooks remain.
+      
+    - Prehooks can now send datas to Posthooks through pipes.
+    
+    - Major rewrite of the subprocess management code, thanks to Peter Stuge.
+    
   * 2.12alpha :
 
     - Greatly improved the IPP parser.
