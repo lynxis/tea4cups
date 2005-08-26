@@ -38,7 +38,7 @@ import signal
 import time
 from struct import unpack
 
-version = "3.00_unofficial"
+version = "3.01_unofficial"
 
 class TeeError(Exception):
     """Base exception for Tea4CUPS related stuff."""
@@ -537,8 +537,12 @@ class CupsBackend :
         self.DataFile = os.path.join(self.Directory, "%s-%s-%s-%s" % (self.myname, self.PrinterName, self.UserName, self.JobId))
         (ippfilename, ippmessage) = self.parseIPPRequestFile()
         self.ControlFile = ippfilename
-        (chtype, self.ClientHost) = ippmessage.operation_attributes.get("job-originating-host-name", \
-                                          ippmessage.job_attributes.get("job-originating-host-name", (None, None)))
+        john = ippmessage.operation_attributes.get("job-originating-host-name", \
+               ippmessage.job_attributes.get("job-originating-host-name", \
+               (None, None)))
+        if type(john) == type([]) :                          
+            john = john[-1]
+        (chtype, self.ClientHost) = john                          
         (jbtype, self.JobBilling) = ippmessage.job_attributes.get("job-billing", (None, None))
 
     def getCupsConfigDirectives(self, directives=[]) :
