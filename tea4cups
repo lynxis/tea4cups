@@ -26,19 +26,16 @@
 import sys
 import os
 import pwd
-import popen2
 import errno
 import md5
 import cStringIO
 import shlex
 import tempfile
 import ConfigParser
-import select
 import signal
-import time
-from struct import unpack
+from struct import pack, unpack
 
-version = "3.01_unofficial"
+version = "3.02_unofficial"
 
 class TeeError(Exception):
     """Base exception for Tea4CUPS related stuff."""
@@ -182,54 +179,54 @@ class IPPRequest :
         if not self.parsed :
             return ""
         else :    
-            buffer = []
-            buffer.append("IPP version : %s.%s" % self.version)
-            buffer.append("IPP operation Id : 0x%04x" % self.operation_id)
-            buffer.append("IPP request Id : 0x%08x" % self.request_id)
+            mybuffer = []
+            mybuffer.append("IPP version : %s.%s" % self.version)
+            mybuffer.append("IPP operation Id : 0x%04x" % self.operation_id)
+            mybuffer.append("IPP request Id : 0x%08x" % self.request_id)
             for attrtype in self.attributes_types :
                 attrdict = getattr(self, "%s_attributes" % attrtype)
                 if attrdict :
-                    buffer.append("%s attributes :" % attrtype.title())
+                    mybuffer.append("%s attributes :" % attrtype.title())
                     for key in attrdict.keys() :
-                        buffer.append("  %s : %s" % (key, attrdict[key]))
+                        mybuffer.append("  %s : %s" % (key, attrdict[key]))
             if self.data :            
-                buffer.append("IPP datas : %s" % repr(message.data))
-            return "\n".join(buffer)
+                mybuffer.append("IPP datas : %s" % repr(self.data))
+            return "\n".join(mybuffer)
         
     def dump(self) :    
         """Generates an IPP Message.
         
            Returns the message as a string of text.
         """    
-        buffer = []
+        mybuffer = []
         if None not in (self.version, self.operation_id, self.request_id) :
-            buffer.append(chr(self.version[0]) + chr(self.version[1]))
-            buffer.append(pack(">H", self.operation_id))
-            buffer.append(pack(">I", self.request_id))
+            mybuffer.append(chr(self.version[0]) + chr(self.version[1]))
+            mybuffer.append(pack(">H", self.operation_id))
+            mybuffer.append(pack(">I", self.request_id))
             for attrtype in self.attributes_types :
                 tagprinted = 0
                 for (attrname, value) in getattr(self, "%s_attributes" % attrtype).items() :
                     if not tagprinted :
-                        buffer.append(chr(self.dictags["%s-attributes-tag" % attrtype]))
+                        mybuffer.append(chr(self.dictags["%s-attributes-tag" % attrtype]))
                         tagprinted = 1
                     if type(value) != type([]) :
                         value = [ value ]
                     for (vtype, val) in value :
-                        buffer.append(chr(self.dictags[vtype]))
-                        buffer.append(pack(">H", len(attrname)))
-                        buffer.append(attrname)
+                        mybuffer.append(chr(self.dictags[vtype]))
+                        mybuffer.append(pack(">H", len(attrname)))
+                        mybuffer.append(attrname)
                         if vtype in ("integer", "enum") :
-                            buffer.append(pack(">H", 4))
-                            buffer.append(pack(">I", val))
+                            mybuffer.append(pack(">H", 4))
+                            mybuffer.append(pack(">I", val))
                         elif vtype == "boolean" :
-                            buffer.append(pack(">H", 1))
-                            buffer.append(chr(val))
+                            mybuffer.append(pack(">H", 1))
+                            mybuffer.append(chr(val))
                         else :    
-                            buffer.append(pack(">H", len(val)))
-                            buffer.append(val)
-            buffer.append(chr(self.dictags["end-of-attributes-tag"]))
-        buffer.append(self.data)    
-        return "".join(buffer)
+                            mybuffer.append(pack(">H", len(val)))
+                            mybuffer.append(val)
+            mybuffer.append(chr(self.dictags["end-of-attributes-tag"]))
+        mybuffer.append(self.data)    
+        return "".join(mybuffer)
             
     def parse(self) :
         """Parses an IPP Request.
@@ -780,7 +777,7 @@ class CupsBackend :
         pid = os.fork()
         if pid == 0 :
             if self.InputFile is None :
-                f = open(self.dataFile, "rb")
+                f = open(self.DataFile, "rb")
                 os.dup2(f.fileno(), 0)
                 f.close()
             try :
