@@ -24,6 +24,8 @@ TODO, in no particular order :
         
         - Add an 'onfail' directive, to launch some script whenever
           the real backend failed.
+          
+        - Add filters.  
         
 ============================================================
 
