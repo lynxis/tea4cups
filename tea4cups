@@ -168,7 +168,7 @@ class IPPRequest :
             if value is not None :
                 self.dictags[value] = i
         
-    def printInfo(self, msg) :    
+    def logDebug(self, msg) :    
         """Prints a debug message."""
         if self.debug :
             sys.stderr.write("%s\n" % msg)
@@ -288,42 +288,42 @@ class IPPRequest :
             value = ord(value)
         oldval = self._curdict.setdefault(name, [])
         oldval.append((tagtype, value))
-        self.printInfo("%s(%s) : %s" % (name, tagtype, value))
+        self.logDebug("%s(%s) : %s" % (name, tagtype, value))
         return posend - self.position
         
     def operation_attributes_tag(self) : 
         """Indicates that the parser enters into an operation-attributes-tag group."""
-        self.printInfo("Start of operation_attributes_tag")
+        self.logDebug("Start of operation_attributes_tag")
         self._curdict = self.operation_attributes
         return self.parseTag()
         
     def job_attributes_tag(self) : 
         """Indicates that the parser enters into a job-attributes-tag group."""
-        self.printInfo("Start of job_attributes_tag")
+        self.logDebug("Start of job_attributes_tag")
         self._curdict = self.job_attributes
         return self.parseTag()
         
     def printer_attributes_tag(self) : 
         """Indicates that the parser enters into a printer-attributes-tag group."""
-        self.printInfo("Start of printer_attributes_tag")
+        self.logDebug("Start of printer_attributes_tag")
         self._curdict = self.printer_attributes
         return self.parseTag()
         
     def unsupported_attributes_tag(self) : 
         """Indicates that the parser enters into an unsupported-attributes-tag group."""
-        self.printInfo("Start of unsupported_attributes_tag")
+        self.logDebug("Start of unsupported_attributes_tag")
         self._curdict = self.unsupported_attributes
         return self.parseTag()
         
     def subscription_attributes_tag(self) : 
         """Indicates that the parser enters into a subscription-attributes-tag group."""
-        self.printInfo("Start of subscription_attributes_tag")
+        self.logDebug("Start of subscription_attributes_tag")
         self._curdict = self.subscription_attributes
         return self.parseTag()
         
     def event_notification_attributes_tag(self) : 
         """Indicates that the parser enters into an event-notification-attributes-tag group."""
-        self.printInfo("Start of event_notification_attributes_tag")
+        self.logDebug("Start of event_notification_attributes_tag")
         self._curdict = self.event_notification_attributes
         return self.parseTag()
 
