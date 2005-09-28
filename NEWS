@@ -22,9 +22,11 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 
 Tea4CUPS News :
 
-  * 3.03 :
+  * 3.10 :
   
     - Added filters.
+    
+    - Added the "onfail" directive to tea4cups.conf
     
   * 3.02 :
   
