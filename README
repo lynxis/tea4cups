@@ -23,8 +23,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 Tea4CUPS resembles the *nix command 'tee', but is a CUPS backend.
 
 Tea4CUPS behaves just like any other CUPS backend, but allows you to
-transparently send print jobs' datas to any number of outputs : other
-CUPS backends, files or pipes.
+modify print jobs' datas as they pass through it and to transparently 
+send them to any number of outputs : other CUPS backends, files or pipes.
 
 This for example allows you to output the same print job on several
 printers at the same time, which is not possible with CUPS.
@@ -36,21 +36,29 @@ message, all of this by printing it a single time.
 Tea4CUPS allows this by permitting you to easily plug your own
 commands into the very last stage of CUPS' filtering chain.
 
-Tea4CUPS provides two ways to launch commands :
+Tea4CUPS provides three ways to launch commands :
+
+        - filters : A filter can modify the input datas before they
+                    are sent to the printer or made available to
+                    the pre and post hooks defined below.
+                    Currently a single filter can be defined
+                    per print queue.
 
         - prehooks : these are guaranteed to be launched before the
                      print job is sent to the real printer.
                      Any prehook which exits -1 can cancel the
-                     print job.
+                     print job. Any number of prehooks can be
+                     defined for a particular print queue.
 
         - posthooks : these are guaranteed to be launched after the
                       print job has been sent to the real printer,
                       unless the job was previously cancelled by a
-                      prehook.
+                      prehook. Any number of posthooks can be 
+                      defined for a particular print queue.
 
 To help your own commands, Tea4CUPS makes available as part of the
 environment several variables which can be used from the
-commands you use :
+commands you use in pre and post hooks :
 
         TEAPRINTERNAME : The print queue name.
         TEADIRECTORY : Tea4CUPS output directory.
@@ -69,9 +77,8 @@ commands you use :
         TEASTATUS : Original CUPS backend's exit code : ONLY AVAILABLE FROM
                     posthooks, obviously.
 
-In the case you want to use both Tea4CUPS and PyKota, you MUST install
-PyKota v1.22alpha2 or higher to avoid a race condition.
-
+        None of these environment variables is available to filters.
+  
 NB : Tea4CUPS requires a version of Python >= 2.1
 
 =============================================================================

@@ -33,9 +33,10 @@ import shlex
 import tempfile
 import ConfigParser
 import signal
+import popen2
 from struct import pack, unpack
 
-version = "3.02_unofficial"
+version = "3.10_unofficial"
 
 class TeeError(Exception):
     """Base exception for Tea4CUPS related stuff."""
@@ -622,6 +623,23 @@ class CupsBackend :
             mustclose = 1
         else :
             infile = sys.stdin
+            
+        filtercommand = self.getPrintQueueOption(self.PrinterName, "filter", \
+                                                 ignore=1)
+        if filtercommand :                                                 
+            self.logDebug("Data stream will be filtered through [%s]" % filtercommand)
+            filteroutput = "%s.filteroutput" % self.DataFile
+            outf = open(filteroutput, "wb")
+            filterstatus = self.stdioRedirSystem(filtercommand, infile.fileno(), outf.fileno())
+            outf.close()
+            self.logDebug("Filter's output status : %s" % repr(filterstatus))
+            if mustclose :
+                infile.close()
+            infile = open(filteroutput, "rb")
+            mustclose = 1
+        else :    
+            self.logDebug("Data stream will be used as-is (no filter defined)")
+            
         CHUNK = 64*1024         # read 64 Kb at a time
         dummy = 0
         sizeread = 0
@@ -638,8 +656,18 @@ class CupsBackend :
                 self.logDebug("%s bytes saved..." % sizeread)
             dummy += 1
         outfile.close()
+        
+        if filtercommand :
+            self.logDebug("Removing filter's output file %s" % filteroutput)
+            try :
+                os.remove(filteroutput)
+            except :    
+                pass
+                
         if mustclose :
             infile.close()
+            
+        self.logDebug("%s bytes saved..." % sizeread)
         self.JobSize = sizeread
         self.JobMD5Sum = checksum.hexdigest()
         self.logDebug("Job %s is %s bytes long." % (self.JobId, self.JobSize))
@@ -671,6 +699,12 @@ class CupsBackend :
         if not self.isCancelled and not self.gotSigTerm :
             if self.RealBackend :
                 retcode = self.runOriginalBackend()
+                if retcode :
+                    onfail = self.getPrintQueueOption(self.PrinterName, \
+                                                      "onfail", ignore=1)
+                    if onfail :
+                        self.logDebug("Launching onfail script %s" % onfail)
+                        os.system(onfail)
             if not self.gotSigTerm :
                 os.environ["TEASTATUS"] = str(retcode)
                 branches = self.enumBranches(self.PrinterName, "posthook")
