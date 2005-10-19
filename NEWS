@@ -22,6 +22,11 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 
 Tea4CUPS News :
 
+  * 3.11 : 
+  
+    - Fixed an incompatibility with Python 2.1, thanks to Frank
+      Koormann.
+      
   * 3.10 :
   
     - Added filters.

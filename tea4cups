@@ -36,7 +36,7 @@ import signal
 import popen2
 from struct import pack, unpack
 
-version = "3.10_unofficial"
+version = "3.11_unofficial"
 
 class TeeError(Exception):
     """Base exception for Tea4CUPS related stuff."""
@@ -691,7 +691,7 @@ class CupsBackend :
         serialize = self.isTrue(self.getPrintQueueOption(self.PrinterName, "serialize", ignore=1))
         self.pipes = { 0: (0, 1) }
         branches = self.enumBranches(self.PrinterName, "prehook")
-        for b in branches :
+        for b in branches.keys() :
             self.pipes[b.split("_", 1)[1]] = os.pipe()
         retcode = self.runCommands("prehook", branches, serialize)
         for p in [ (k, v) for (k, v) in self.pipes.items() if k != 0 ] :
