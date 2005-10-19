@@ -36,6 +36,7 @@ Contributors :
   The following people contributed to the Tea4CUPS project :
 
   - Peter Stuge : rewrote most of the subprocess management stuff.
+  - Frank Koormann : fixed a problem with Python 2.1
 
 ==============================================================
 
