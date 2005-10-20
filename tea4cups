@@ -33,10 +33,9 @@ import shlex
 import tempfile
 import ConfigParser
 import signal
-import popen2
 from struct import pack, unpack
 
-version = "3.11_unofficial"
+__version__ = "3.11_unofficial"
 
 class TeeError(Exception):
     """Base exception for Tea4CUPS related stuff."""
@@ -359,7 +358,7 @@ class CupsBackend :
     def logInfo(self, message, level="info") :
         """Logs a message to CUPS' error_log file."""
         try :
-            sys.stderr.write("%s: %s v%s (PID %i) : %s\n" % (level.upper(), self.MyName, version, os.getpid(), message))
+            sys.stderr.write("%s: %s v%s (PID %i) : %s\n" % (level.upper(), self.MyName, __version__, os.getpid(), message))
             sys.stderr.flush()
         except IOError :
             pass
@@ -868,7 +867,7 @@ if __name__ == "__main__" :
                 lines.extend([l for l in line.split("\n") if l])
             msg = "ERROR: ".join(["%s (PID %s) : %s\n" % (wrapper.MyName, \
                                                           wrapper.pid, l) \
-                        for l in (["ERROR: Tea4CUPS v%s" % version] + lines)])
+                        for l in (["ERROR: Tea4CUPS v%s" % __version__] + lines)])
             sys.stderr.write(msg)
             sys.stderr.flush()
             retcode = 1
