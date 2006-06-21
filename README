@@ -100,6 +100,11 @@ Installation :
       for example :
 
         $ cp tea4cups /usr/lib/cups/backend
+        
+      If you use CUPS v1.2 you must do this :  
+      
+        $ chown root.root /usr/lib/cups/backend/tea4cups
+        $ chmod 700 /usr/lib/cups/backend/tea4cups
 
   2 - Restart CUPS in order for this new backend to be detected.
       NB : For this to work you need CUPS 1.1.15 or higher.
