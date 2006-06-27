@@ -25,6 +25,7 @@
 
 import sys
 import os
+import time
 import pwd
 import errno
 import md5
@@ -122,7 +123,7 @@ class IPPRequest :
         self.tags[0x04] = "printer-attributes-tag"
         self.tags[0x05] = "unsupported-attributes-tag"
         self.tags[0x06] = "subscription-attributes-tag"
-        self.tags[0x07] = "event-notification-attributes-tag"
+        self.tags[0x07] = "event_notification-attributes-tag"
         
         # out of band values
         self.tags[0x10] = "unsupported"
@@ -530,7 +531,7 @@ class CupsBackend :
         self.RealBackend = backend
         self.DeviceURI = device_uri
         self.PrinterName = os.environ.get("PRINTER", "")
-        self.Directory = self.getPrintQueueOption(self.PrinterName, "directory")
+        self.Directory = self.getPrintQueueOption(self.PrinterName, "directory", ignore=1) or tempfile.gettempdir()
         self.DataFile = os.path.join(self.Directory, "%s-%s-%s-%s" % (self.myname, self.PrinterName, self.UserName, self.JobId))
         (ippfilename, ippmessage) = self.parseIPPRequestFile()
         self.ControlFile = ippfilename
@@ -674,8 +675,12 @@ class CupsBackend :
 
     def cleanUp(self) :
         """Cleans up the place."""
-        if not self.isTrue(self.getPrintQueueOption(self.PrinterName, "keepfiles", ignore=1)) :
-            os.remove(self.DataFile)
+        if (not self.isTrue(self.getPrintQueueOption(self.PrinterName, "keepfiles", ignore=1))) \
+            and os.path.exists(self.DataFile) :
+            try :
+                os.remove(self.DataFile)
+            except OSError, msg :    
+                self.logInfo("Problem when removing %s : %s" % (self.DataFile, msg), "error")
 
     def sigtermHandler(self, signum, frame) :
         """Sets an attribute whenever SIGTERM is received."""
@@ -697,7 +702,7 @@ class CupsBackend :
             os.close(p[1][1])
         if not self.isCancelled and not self.gotSigTerm :
             if self.RealBackend :
-                retcode = self.runOriginalBackend()
+                retcode = self.launchOriginalBackend()
                 if retcode :
                     onfail = self.getPrintQueueOption(self.PrinterName, \
                                                       "onfail", ignore=1)
@@ -801,6 +806,33 @@ class CupsBackend :
             self.logDebug("End forked %ss" % btypetitle)
         return exitcode
 
+    def launchOriginalBackend(self) :
+        """Launches the original backend, optionally retrying if needed."""
+        number = 1
+        delay = 0
+        retry = self.getPrintQueueOption(self.PrinterName, "retry", ignore=1)
+        if retry is not None :
+            try :
+                (number, delay) = [int(p) for p in retry.strip().split(",")]
+            except (ValueError, AttributeError, TypeError) :    
+                self.logInfo("Invalid value '%s' for the 'retry' directive for printer %s in %s." % (retry, self.PrinterName, self.conffile), "error")
+                number = 1
+                delay = 0
+                
+        loopcount = 1 
+        while 1 :            
+            retcode = self.runOriginalBackend()
+            if not retcode :
+                break
+            else :
+                if (not number) or (loopcount < number) :
+                    self.logInfo(_("The real backend produced an error, we will try again in %s seconds.") % delay, "warn")
+                    time.sleep(delay)
+                    loopcount += 1
+                else :    
+                    break
+        return retcode            
+        
     def runOriginalBackend(self) :
         """Launches the original backend."""
         originalbackend = os.path.join(os.path.split(sys.argv[0])[0], self.RealBackend)
@@ -813,6 +845,8 @@ class CupsBackend :
                 f = open(self.DataFile, "rb")
                 os.dup2(f.fileno(), 0)
                 f.close()
+            else :    
+                arguments[6] = self.DataFile # in case a tea4cups filter was applied
             try :
                 os.execve(originalbackend, arguments, os.environ)
             except OSError, msg :
@@ -830,7 +864,7 @@ class CupsBackend :
         if os.WIFEXITED(status) :
             status = os.WEXITSTATUS(status)
             if status :
-              self.logInfo("CUPS backend %s returned %d." % (originalbackend,\
+                self.logInfo("CUPS backend %s returned %d." % (originalbackend,\
                                                              status), "error")
             return status
         elif not killed :
@@ -851,24 +885,27 @@ if __name__ == "__main__" :
                               % sys.argv[0])
         sys.exit(1)
     else :
+        retcode = 1
         try :
-            wrapper.readConfig()
-            wrapper.initBackend()
-            wrapper.saveDatasAndCheckSum()
-            wrapper.exportAttributes()
-            retcode = wrapper.runBranches()
+            try :
+                wrapper.readConfig()
+                wrapper.initBackend()
+                wrapper.saveDatasAndCheckSum()
+                wrapper.exportAttributes()
+                retcode = wrapper.runBranches()
+            except SystemExit, e :
+                retcode = e.code
+            except :
+                import traceback
+                lines = []
+                for line in traceback.format_exception(*sys.exc_info()) :
+                    lines.extend([l for l in line.split("\n") if l])
+                msg = "ERROR: ".join(["%s (PID %s) : %s\n" % (wrapper.MyName, \
+                                                              wrapper.pid, l) \
+                            for l in (["ERROR: Tea4CUPS v%s" % __version__] + lines)])
+                sys.stderr.write(msg)
+                sys.stderr.flush()
+                retcode = 1
+        finally :        
             wrapper.cleanUp()
-        except SystemExit, e :
-            retcode = e.code
-        except :
-            import traceback
-            lines = []
-            for line in traceback.format_exception(*sys.exc_info()) :
-                lines.extend([l for l in line.split("\n") if l])
-            msg = "ERROR: ".join(["%s (PID %s) : %s\n" % (wrapper.MyName, \
-                                                          wrapper.pid, l) \
-                        for l in (["ERROR: Tea4CUPS v%s" % __version__] + lines)])
-            sys.stderr.write(msg)
-            sys.stderr.flush()
-            retcode = 1
         sys.exit(retcode)
