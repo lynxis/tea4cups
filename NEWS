@@ -22,8 +22,12 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 
 Tea4CUPS News :
 
-  * 3.12 (2006-08-10) :
+  * 3.12 (2006-08-11) :
   
+    - Serializes accesses to the same device from different queues 
+      or print servers through file locking facilities (works over
+      NFS).
+    
     - Improved support for CUPS 1.2.x and higher.
     
     - Allows the administrator to cleanly stop tea4cups with SIGINT.

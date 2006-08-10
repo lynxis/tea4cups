@@ -82,10 +82,11 @@ import tempfile
 import ConfigParser
 import signal
 import socket
+import fcntl
 import urllib2
 from struct import pack, unpack
 
-__version__ = "3.12alpha2_unofficial"
+__version__ = "3.12_unofficial"
 
 class TeeError(Exception):
     """Base exception for Tea4CUPS related stuff."""
@@ -908,7 +909,41 @@ class CupsBackend :
         self.pipes = {}
         self.config = None
         self.conffile = None
+        self.LockFile = None
 
+    def waitForLock(self) :    
+        """Waits until we can acquire the lock file."""
+        self.logDebug("Waiting for lock...")
+        lockfilename = self.DeviceURI.replace("/", ".")
+        lockfilename = lockfilename.replace(":", ".")
+        lockfilename = lockfilename.replace("?", ".")
+        lockfilename = lockfilename.replace("&", ".")
+        lockfilename = lockfilename.replace("@", ".")
+        lockfilename = os.path.join(self.Directory, "%s-%s..LCK" % (self.myname, lockfilename))
+        stillrunning = True
+        while 1 :
+            self.LockFile = open(lockfilename, "a+")
+            fcntl.lockf(self.LockFile, fcntl.LOCK_EX) # Will wait until lock available
+            self.LockFile.seek(0, 0)      
+            try : 
+                oldpid = int(self.LockFile.readlines()[-1].strip())
+            except :    
+                stillrunning = False
+            else :    
+                try :
+                    os.kill(oldpid, 0)
+                except OSError :    
+                    stillrunning = False
+            if not stillrunning :        
+                self.LockFile.truncate(0)
+                self.LockFile.seek(0, 0)
+                self.LockFile.write("%s\n" % self.pid)
+                self.LockFile.flush()
+                break
+            else :    
+                time.sleep(0.1)
+        self.logDebug("Lock acquired.")
+        
     def readConfig(self) :
         """Reads the configuration file."""
         confdir = os.environ.get("CUPS_SERVERROOT", ".")
@@ -1117,8 +1152,7 @@ class CupsBackend :
         if type(jbing) == type([]) : 
             jbing = jbing[-1]
         (dummy, self.JobBilling) = jbing
-
-
+        
     def parseIPPRequestFile(self) :
         """Parses the IPP message file and returns a tuple (filename, parsedvalue)."""
         requestroot = os.environ.get("CUPS_REQUESTROOT")
@@ -1226,12 +1260,23 @@ class CupsBackend :
 
     def cleanUp(self) :
         """Cleans up the place."""
+        self.logDebug("Cleaning up...")
         if (not isTrue(self.getPrintQueueOption(self.PrinterName, "keepfiles", ignore=1))) \
             and os.path.exists(self.DataFile) :
             try :
                 os.remove(self.DataFile)
             except OSError, msg :    
                 self.logInfo("Problem when removing %s : %s" % (self.DataFile, msg), "error")
+        self.logDebug("Removing lock...")
+        try :
+            fcntl.flock(self.LockFile, fcntl.LOCK_UN)
+            self.LockFile.close()
+            # NB : we don't remove the lock file, since it might already be opened by another process.
+        except :    
+            self.logInfo("Problem while removing lock.", "error")
+        else :    
+            self.logDebug("Lock removed.")
+        self.logDebug("Clean.")
 
     def runBranches(self) :
         """Launches each hook defined for the current print queue."""
@@ -1429,6 +1474,7 @@ if __name__ == "__main__" :
             try :
                 wrapper.readConfig()
                 wrapper.initBackend()
+                wrapper.waitForLock()
                 wrapper.saveDatasAndCheckSum()
                 wrapper.exportAttributes()
                 returncode = wrapper.runBranches()
