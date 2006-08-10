@@ -23,6 +23,53 @@
 #
 #
 
+"""Tea4CUPS is the Swiss Army's knife of the CUPS Administrator.
+
+
+Licensing terms :
+
+  (c) 2005, 2006 Jerome Alet <alet@librelogiciel.com>
+  (c) 2005 Peter Stuge <stuge-tea4cups@cdy.org>
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2 of the License, or
+  (at your option) any later version.
+  
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+  
+  You should have received a copy of the GNU General Public License
+  along with this program; if not, write to the Free Software
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+
+
+Setup :
+
+  Copy the different files where they belong :
+  
+    $ cp tea4cups /usr/lib/cups/backend/
+    $ chown root.root /usr/lib/cups/backend/tea4cups
+    $ chmod 700 /usr/lib/cups/backend/tea4cups
+    $ cp tea4cups.conf /etc/cupsd/
+  
+  Now edit the configuration file to suit your needs :
+  
+    $ vi /etc/cupsd/tea4cups.conf
+    
+    NB : you can use emacs as well :-)
+    
+  Finally restart CUPS :
+  
+    $ /etc/init.d/cupsys restart
+  
+  You can now create "Tea4CUPS Managed" print queues from
+  CUPS' web interface, or using lpadmin.
+  
+Send bug reports to : alet@librelogiciel.com  
+"""        
+
 import sys
 import os
 import time
@@ -797,6 +844,40 @@ class FakeConfig :
         """Fakes the retrieval of an option."""
         raise ConfigError, "Invalid configuration file : no option %s in section [%s]" % (option, section)
 
+def isTrue(option) :
+    """Returns 1 if option is set to true, else 0."""
+    if (option is not None) and (option.upper().strip() in ['Y', 'YES', '1', 'ON', 'T', 'TRUE']) :
+        return 1
+    else :
+        return 0
+
+def getCupsConfigDirectives(directives=[]) :
+    """Retrieves some CUPS directives from its configuration file.
+
+       Returns a mapping with lowercased directives as keys and
+       their setting as values.
+    """
+    dirvalues = {}
+    cupsroot = os.environ.get("CUPS_SERVERROOT", "/etc/cups")
+    cupsdconf = os.path.join(cupsroot, "cupsd.conf")
+    try :
+        conffile = open(cupsdconf, "r")
+    except IOError :
+        raise TeeError, "Unable to open %s" % cupsdconf
+    else :
+        for line in conffile.readlines() :
+            linecopy = line.strip().lower()
+            for di in [d.lower() for d in directives] :
+                if linecopy.startswith("%s " % di) :
+                    try :
+                        val = line.split()[1]
+                    except :
+                        pass # ignore errors, we take the last value in any case.
+                    else :
+                        dirvalues[di] = val
+        conffile.close()
+    return dirvalues
+    
 class CupsBackend :
     """Base class for tools with no database access."""
     def __init__(self) :
@@ -806,6 +887,27 @@ class CupsBackend :
         self.MyName = "Tea4CUPS"
         self.myname = "tea4cups"
         self.pid = os.getpid()
+        self.debug = True
+        self.isCancelled = False
+        self.Title = None
+        self.InputFile = None
+        self.RealBackend = None
+        self.ControlFile = None
+        self.ClientHost = None
+        self.PrinterName = None
+        self.JobBilling = None
+        self.UserName = None
+        self.Copies = None
+        self.Options = None
+        self.DataFile = None
+        self.JobMD5Sum = None
+        self.JobSize = None
+        self.DeviceURI = None
+        self.JobId = None
+        self.Directory = None
+        self.pipes = {}
+        self.config = None
+        self.conffile = None
 
     def readConfig(self) :
         """Reads the configuration file."""
@@ -814,7 +916,7 @@ class CupsBackend :
         if os.path.isfile(self.conffile) :
             self.config = ConfigParser.ConfigParser()
             self.config.read([self.conffile])
-            self.debug = self.isTrue(self.getGlobalOption("debug", ignore=1))
+            self.debug = isTrue(self.getGlobalOption("debug", ignore=1))
         else :
             self.config = FakeConfig()
             self.debug = 1      # no config, so force debug mode !
@@ -831,13 +933,6 @@ class CupsBackend :
         """Logs something to debug output if debug is enabled."""
         if self.debug :
             self.logInfo(message, level="debug")
-
-    def isTrue(self, option) :
-        """Returns 1 if option is set to true, else 0."""
-        if (option is not None) and (option.upper().strip() in ['Y', 'YES', '1', 'ON', 'T', 'TRUE']) :
-            return 1
-        else :
-            return 0
 
     def getGlobalOption(self, option, ignore=0) :
         """Returns an option from the global section, or raises a ConfigError if ignore is not set, else returns None."""
@@ -905,8 +1000,8 @@ class CupsBackend :
             try :
                 # see if the pid contained in the lock file is still running
                 os.kill(pid, 0)
-            except OSError, e :
-                if e.errno != errno.EPERM :
+            except OSError, error :
+                if error.errno != errno.EPERM :
                     # process doesn't exist anymore
                     os.remove(lockfilename)
 
@@ -921,7 +1016,7 @@ class CupsBackend :
             for backend in allbackends :
                 answer = os.popen(backend, "r")
                 try :
-                    devices = [line.strip() for line in answer.readlines()]
+                    devices = [deviceline.strip() for deviceline in answer.readlines()]
                 except :
                     devices = []
                 status = answer.close()
@@ -982,11 +1077,11 @@ class CupsBackend :
         if device_uri.startswith(muststartwith) :
             fulldevice_uri = device_uri[:]
             device_uri = fulldevice_uri[len(muststartwith):]
-            for i in range(2) :
+            for dummy in range(2) :
                 if device_uri.startswith("/") :
                     device_uri = device_uri[1:]
         try :
-            (backend, destination) = device_uri.split(":", 1)
+            (backend, dummy) = device_uri.split(":", 1)
         except ValueError :
             if not device_uri :
                 self.logDebug("Not attached to an existing print queue.")
@@ -1014,47 +1109,21 @@ class CupsBackend :
                 john = (None, None)
         if type(john) == type([]) :                          
             john = john[-1]
-        (chtype, self.ClientHost) = john                          
+        (dummy, self.ClientHost) = john                          
         try :        
             jbing = answer.job["job-billing"]
         except KeyError :    
             jbing = (None, None)
         if type(jbing) == type([]) : 
             jbing = jbing[-1]
-        (jbtype, self.JobBilling) = jbing
+        (dummy, self.JobBilling) = jbing
 
-    def getCupsConfigDirectives(self, directives=[]) :
-        """Retrieves some CUPS directives from its configuration file.
-
-           Returns a mapping with lowercased directives as keys and
-           their setting as values.
-        """
-        dirvalues = {}
-        cupsroot = os.environ.get("CUPS_SERVERROOT", "/etc/cups")
-        cupsdconf = os.path.join(cupsroot, "cupsd.conf")
-        try :
-            conffile = open(cupsdconf, "r")
-        except IOError :
-            raise TeeError, "Unable to open %s" % cupsdconf
-        else :
-            for line in conffile.readlines() :
-                linecopy = line.strip().lower()
-                for di in [d.lower() for d in directives] :
-                    if linecopy.startswith("%s " % di) :
-                        try :
-                            val = line.split()[1]
-                        except :
-                            pass # ignore errors, we take the last value in any case.
-                        else :
-                            dirvalues[di] = val
-            conffile.close()
-        return dirvalues
 
     def parseIPPRequestFile(self) :
         """Parses the IPP message file and returns a tuple (filename, parsedvalue)."""
         requestroot = os.environ.get("CUPS_REQUESTROOT")
         if requestroot is None :
-            cupsdconf = self.getCupsConfigDirectives(["RequestRoot"])
+            cupsdconf = getCupsConfigDirectives(["RequestRoot"])
             requestroot = cupsdconf.get("requestroot", "/var/spool/cups")
         if (len(self.JobId) < 5) and self.JobId.isdigit() :
             ippmessagefile = "c%05i" % int(self.JobId)
@@ -1157,24 +1226,17 @@ class CupsBackend :
 
     def cleanUp(self) :
         """Cleans up the place."""
-        if (not self.isTrue(self.getPrintQueueOption(self.PrinterName, "keepfiles", ignore=1))) \
+        if (not isTrue(self.getPrintQueueOption(self.PrinterName, "keepfiles", ignore=1))) \
             and os.path.exists(self.DataFile) :
             try :
                 os.remove(self.DataFile)
             except OSError, msg :    
                 self.logInfo("Problem when removing %s : %s" % (self.DataFile, msg), "error")
 
-    def sigtermHandler(self, signum, frame) :
-        """Sets an attribute whenever SIGTERM is received."""
-        self.gotSigTerm = 1
-        self.logInfo("SIGTERM received for Job %s." % self.JobId)
-
     def runBranches(self) :
         """Launches each hook defined for the current print queue."""
         self.isCancelled = 0    # did a prehook cancel the print job ?
-        self.gotSigTerm = 0
-        signal.signal(signal.SIGTERM, self.sigtermHandler)
-        serialize = self.isTrue(self.getPrintQueueOption(self.PrinterName, "serialize", ignore=1))
+        serialize = isTrue(self.getPrintQueueOption(self.PrinterName, "serialize", ignore=1))
         self.pipes = { 0: (0, 1) }
         branches = self.enumBranches(self.PrinterName, "prehook")
         for b in branches.keys() :
@@ -1182,7 +1244,7 @@ class CupsBackend :
         retcode = self.runCommands("prehook", branches, serialize)
         for p in [ (k, v) for (k, v) in self.pipes.items() if k != 0 ] :
             os.close(p[1][1])
-        if not self.isCancelled and not self.gotSigTerm :
+        if not self.isCancelled :
             if self.RealBackend :
                 retcode = self.launchOriginalBackend()
                 if retcode :
@@ -1191,14 +1253,14 @@ class CupsBackend :
                     if onfail :
                         self.logDebug("Launching onfail script %s" % onfail)
                         os.system(onfail)
-            if not self.gotSigTerm :
-                os.environ["TEASTATUS"] = str(retcode)
-                branches = self.enumBranches(self.PrinterName, "posthook")
-                if self.runCommands("posthook", branches, serialize) :
-                    self.logInfo("An error occured during the execution of posthooks.", "warn")
+                        
+            os.environ["TEASTATUS"] = str(retcode)
+            branches = self.enumBranches(self.PrinterName, "posthook")
+            if self.runCommands("posthook", branches, serialize) :
+                self.logInfo("An error occured during the execution of posthooks.", "warn")
+                
         for p in [ (k, v) for (k, v) in self.pipes.items() if k != 0 ] :
             os.close(p[1][0])
-        signal.signal(signal.SIGTERM, signal.SIG_IGN)
         if not retcode :
             self.logInfo("OK")
         else :
@@ -1248,8 +1310,6 @@ class CupsBackend :
         if serialize :
             self.logDebug("Begin serialized %ss" % btypetitle)
             for branch in branchlist :
-                if self.gotSigTerm :
-                    break
                 retcode = self.runCommand(branch, branches[branch])
                 self.logDebug("Exit code for %s %s on printer %s is %s" % (btype, branch, self.PrinterName, retcode))
                 if retcode :
@@ -1264,8 +1324,6 @@ class CupsBackend :
             self.logDebug("Begin forked %ss" % btypetitle)
             pids = {}
             for branch in branchlist :
-                if self.gotSigTerm :
-                    break
                 pid = os.fork()
                 if pid :
                     pids[branch] = pid
@@ -1340,17 +1398,16 @@ class CupsBackend :
             try :
                 status = os.waitpid(pid, 0)[1]
             except OSError, (err, msg) :
-                if (err == 4) and self.gotSigTerm :
-                    os.kill(pid, signal.SIGTERM)
+                if err == 4 :
                     killed = 1
         if os.WIFEXITED(status) :
             status = os.WEXITSTATUS(status)
             if status :
-                self.logInfo("CUPS backend %s returned %d." % (originalbackend,\
+                self.logInfo("CUPS backend %s returned %d." % (originalbackend, \
                                                              status), "error")
             return status
         elif not killed :
-            self.logInfo("CUPS backend %s died abnormally." % originalbackend,\
+            self.logInfo("CUPS backend %s died abnormally." % originalbackend, \
                                                               "error")
             return -1
         else :
@@ -1367,27 +1424,27 @@ if __name__ == "__main__" :
                               % sys.argv[0])
         sys.exit(1)
     else :
-        retcode = 1
+        returncode = 1
         try :
             try :
                 wrapper.readConfig()
                 wrapper.initBackend()
                 wrapper.saveDatasAndCheckSum()
                 wrapper.exportAttributes()
-                retcode = wrapper.runBranches()
+                returncode = wrapper.runBranches()
             except SystemExit, e :
-                retcode = e.code
+                returncode = e.code
             except :
                 import traceback
                 lines = []
-                for line in traceback.format_exception(*sys.exc_info()) :
-                    lines.extend([l for l in line.split("\n") if l])
-                msg = "ERROR: ".join(["%s (PID %s) : %s\n" % (wrapper.MyName, \
+                for errline in traceback.format_exception(*sys.exc_info()) :
+                    lines.extend([l for l in errline.split("\n") if l])
+                errormessage = "ERROR: ".join(["%s (PID %s) : %s\n" % (wrapper.MyName, \
                                                               wrapper.pid, l) \
                             for l in (["ERROR: Tea4CUPS v%s" % __version__] + lines)])
-                sys.stderr.write(msg)
+                sys.stderr.write(errormessage)
                 sys.stderr.flush()
-                retcode = 1
+                returncode = 1
         finally :        
             wrapper.cleanUp()
-        sys.exit(retcode)
+        sys.exit(returncode)
