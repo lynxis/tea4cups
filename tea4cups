@@ -85,7 +85,7 @@ import socket
 import urllib2
 from struct import pack, unpack
 
-__version__ = "3.12_unofficial"
+__version__ = "3.12alpha2_unofficial"
 
 class TeeError(Exception):
     """Base exception for Tea4CUPS related stuff."""
