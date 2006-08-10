@@ -79,7 +79,7 @@ commands you use in pre and post hooks :
 
         None of these environment variables is available to filters.
   
-NB : Tea4CUPS requires a version of Python >= 2.1
+NB : Tea4CUPS requires a version of Python >= 2.3
 
 =============================================================================
 
@@ -116,7 +116,9 @@ Installation :
 
       Or by directly modifying CUPS' printers.conf file, or with
       the lpadmin command line tool, just prepend each DeviceURI
-      value with 'tea4cups://', and restart CUPS.
+      value with 'tea4cups://'. If you modified printers.conf 
+      directly instead of using lpadmin then don't forget to 
+      restart CUPS.
       (Use this last method if autodetection doesn't work because
       the version of CUPS you use is too old)
 
@@ -135,7 +137,7 @@ Installation :
 Troubleshooting :
 -----------------
 
-  1 - Set "LogLevel debug2" in CUPS' cupsd.conf
+  1 - Set "LogLevel debug2" and "MaxLogSize 0" in CUPS' cupsd.conf
 
   2 - Restart CUPS.
 
