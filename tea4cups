@@ -1434,6 +1434,8 @@ if __name__ == "__main__" :
                 returncode = wrapper.runBranches()
             except SystemExit, e :
                 returncode = e.code
+            except KeyboardInterrupt :    
+                wrapper.logInfo("Job %s interrupted by the administrator !" % wrapper.JobId, "warn")
             except :
                 import traceback
                 lines = []
