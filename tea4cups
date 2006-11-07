@@ -86,7 +86,7 @@ import fcntl
 import urllib2
 from struct import pack, unpack
 
-__version__ = "3.12_unofficial"
+__version__ = "3.13alpha_unofficial"
 
 class TeeError(Exception):
     """Base exception for Tea4CUPS related stuff."""
@@ -913,36 +913,37 @@ class CupsBackend :
 
     def waitForLock(self) :    
         """Waits until we can acquire the lock file."""
-        self.logDebug("Waiting for lock...")
         lockfilename = self.DeviceURI.replace("/", ".")
         lockfilename = lockfilename.replace(":", ".")
         lockfilename = lockfilename.replace("?", ".")
         lockfilename = lockfilename.replace("&", ".")
         lockfilename = lockfilename.replace("@", ".")
         lockfilename = os.path.join(self.Directory, "%s-%s..LCK" % (self.myname, lockfilename))
-        stillrunning = True
-        while 1 :
-            self.LockFile = open(lockfilename, "a+")
-            fcntl.lockf(self.LockFile, fcntl.LOCK_EX) # Will wait until lock available
-            self.LockFile.seek(0, 0)      
-            try : 
-                oldpid = int(self.LockFile.readlines()[-1].strip())
-            except :    
-                stillrunning = False
-            else :    
-                try :
-                    os.kill(oldpid, 0)
-                except OSError :    
-                    stillrunning = False
-            if not stillrunning :        
+        self.logDebug("Waiting for lock %s to become available..." % lockfilename)
+        haslock = False
+        while not haslock :
+            try :
+                # open the lock file, optionally creating it if needed.
+                self.LockFile = open(lockfilename, "a+")
+                
+                # we wait indefinitely for the lock to become available.
+                # works over NFS too.
+                fcntl.lockf(self.LockFile, fcntl.LOCK_EX)
+                haslock = True
+                
+                self.logDebug("Lock %s acquired." % lockfilename)
+                
+                # Here we save the PID in the lock file, but we don't use
+                # it, because the lock file may be in a directory shared
+                # over NFS between two (or more) print servers, so the PID
+                # has no meaning in this case.
                 self.LockFile.truncate(0)
                 self.LockFile.seek(0, 0)
-                self.LockFile.write("%s\n" % self.pid)
+                self.LockFile.write(str(self.pid))
                 self.LockFile.flush()
-                break
-            else :    
-                time.sleep(0.1)
-        self.logDebug("Lock acquired.")
+            except IOError :            
+                self.logDebug("I/O Error while waiting for lock %s" % lockfilename)
+                time.sleep(0.25)
         
     def readConfig(self) :
         """Reads the configuration file."""
@@ -1267,15 +1268,16 @@ class CupsBackend :
                 os.remove(self.DataFile)
             except OSError, msg :    
                 self.logInfo("Problem when removing %s : %s" % (self.DataFile, msg), "error")
-        self.logDebug("Removing lock...")
-        try :
-            fcntl.flock(self.LockFile, fcntl.LOCK_UN)
-            self.LockFile.close()
-            # NB : we don't remove the lock file, since it might already be opened by another process.
-        except :    
-            self.logInfo("Problem while removing lock.", "error")
-        else :    
-            self.logDebug("Lock removed.")
+                
+        if self.LockFile is not None :
+            self.logDebug("Removing lock...")
+            try :
+                fcntl.lockf(self.LockFile, fcntl.LOCK_UN)
+                self.LockFile.close()
+            except :    
+                self.logInfo("Problem while unlocking.", "error")
+            else :    
+                self.logDebug("Lock removed.")
         self.logDebug("Clean.")
 
     def runBranches(self) :
