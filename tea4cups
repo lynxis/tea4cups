@@ -1138,17 +1138,17 @@ class CupsBackend :
         
         try :
             john = answer.job["job-originating-host-name"]
-        except KeyError :    
+        except (KeyError, AttributeError) :    
             try :
                 john = answer.operation["job-originating-host-name"]
-            except KeyError :    
+            except (KeyError, AttributeError) :    
                 john = (None, None)
         if type(john) == type([]) :                          
             john = john[-1]
         (dummy, self.ClientHost) = john                          
         try :        
             jbing = answer.job["job-billing"]
-        except KeyError :    
+        except (KeyError, AttributeError) :    
             jbing = (None, None)
         if type(jbing) == type([]) : 
             jbing = jbing[-1]
