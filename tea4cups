@@ -1131,6 +1131,8 @@ class CupsBackend :
         try :
             cupsserver = CUPS() # TODO : username and password and/or encryption
             answer = cupsserver.getJobAttributes(self.JobId)
+            if answer is None :  # probably connection refused because we
+                raise ValueError # don't hande unix domain sockets yet.
             self.ControlFile = "NotUsedAnymore"
         except :    
             (ippfilename, answer) = self.parseIPPRequestFile()
