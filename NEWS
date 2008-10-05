@@ -23,53 +23,53 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 Tea4CUPS News :
 
   * 3.13alpha (2006-11-07) :
-  
+
     - Backported locking mechanism from PyKota.
-    
+
   * 3.12 (2006-08-11) :
-  
-    - Serializes accesses to the same device from different queues 
+
+    - Serializes accesses to the same device from different queues
       or print servers through file locking facilities (works over
       NFS).
-    
+
     - Improved support for CUPS 1.2.x and higher.
-    
+
     - Allows the administrator to cleanly stop tea4cups with SIGINT.
-    
+
     - Added a configurable retry directive to the configuration file.
-    
+
     - Fixed several minor bugs.
-    
+
     - Improved the installation instructions and the sample configuration
       file.
-    
-  * 3.11 : 
-  
+
+  * 3.11 :
+
     - Fixed an incompatibility with Python 2.1, thanks to Frank
       Koormann.
-      
+
   * 3.10 :
-  
+
     - Added filters.
-    
+
     - Added the "onfail" directive to tea4cups.conf
-    
+
   * 3.02 :
-  
+
     - Fixed some problems thanks to pychecker.
-    
+
   * 3.01 :
-  
+
     - Fixed an IPP parsing bug in some situations.
-    
+
   * 3.00 :
-  
+
     - Tees don't exist anymore. Only prehooks and posthooks remain.
-      
+
     - Prehooks can now send datas to Posthooks through pipes.
-    
+
     - Major rewrite of the subprocess management code, thanks to Peter Stuge.
-    
+
   * 2.12alpha :
 
     - Greatly improved the IPP parser.

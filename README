@@ -23,7 +23,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 Tea4CUPS resembles the *nix command 'tee', but is a CUPS backend.
 
 Tea4CUPS behaves just like any other CUPS backend, but allows you to
-modify print jobs' datas as they pass through it and to transparently 
+modify print jobs' datas as they pass through it and to transparently
 send them to any number of outputs : other CUPS backends, files or pipes.
 
 This for example allows you to output the same print job on several
@@ -53,7 +53,7 @@ Tea4CUPS provides three ways to launch commands :
         - posthooks : these are guaranteed to be launched after the
                       print job has been sent to the real printer,
                       unless the job was previously cancelled by a
-                      prehook. Any number of posthooks can be 
+                      prehook. Any number of posthooks can be
                       defined for a particular print queue.
 
 To help your own commands, Tea4CUPS makes available as part of the
@@ -78,7 +78,7 @@ commands you use in pre and post hooks :
                     posthooks, obviously.
 
         None of these environment variables is available to filters.
-  
+
 NB : Tea4CUPS requires a version of Python >= 2.3
 
 =============================================================================
@@ -100,9 +100,9 @@ Installation :
       for example :
 
         $ cp tea4cups /usr/lib/cups/backend
-        
+
       If you use CUPS v1.2 or higher you must do this as well :
-      
+
         $ chown root.root /usr/lib/cups/backend/tea4cups
         $ chmod 700 /usr/lib/cups/backend/tea4cups
 
@@ -116,8 +116,8 @@ Installation :
 
       Or by directly modifying CUPS' printers.conf file, or with
       the lpadmin command line tool, just prepend each DeviceURI
-      value with 'tea4cups://'. If you modified printers.conf 
-      directly instead of using lpadmin then don't forget to 
+      value with 'tea4cups://'. If you modified printers.conf
+      directly instead of using lpadmin then don't forget to
       restart CUPS.
       (Use this last method if autodetection doesn't work because
       the version of CUPS you use is too old)
