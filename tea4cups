@@ -1307,7 +1307,8 @@ class CupsBackend :
             branches = self.enumBranches(self.PrinterName, "posthook")
             if self.runCommands("posthook", branches, serialize) :
                 self.logInfo("An error occured during the execution of posthooks.", "warn")
-
+        else :
+            retcode = 5 # Job cancelled, for CUPS.
         for p in [ (k, v) for (k, v) in self.pipes.items() if k != 0 ] :
             os.close(p[1][0])
         if not retcode :
