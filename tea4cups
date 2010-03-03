@@ -75,6 +75,7 @@ import os
 import time
 import pwd
 import errno
+import random
 import md5
 import cStringIO
 import shlex
@@ -913,6 +914,7 @@ class CupsBackend :
 
     def waitForLock(self) :
         """Waits until we can acquire the lock file."""
+        random.seed()
         lockfilename = self.DeviceURI.replace("/", ".")
         lockfilename = lockfilename.replace(":", ".")
         lockfilename = lockfilename.replace("?", ".")
@@ -924,6 +926,7 @@ class CupsBackend :
         while not haslock :
             try :
                 # open the lock file, optionally creating it if needed.
+                self.LockFile = None
                 self.LockFile = open(lockfilename, "a+")
 
                 # we wait indefinitely for the lock to become available.
@@ -943,7 +946,9 @@ class CupsBackend :
                 self.LockFile.flush()
             except IOError :
                 self.logDebug("I/O Error while waiting for lock %s" % lockfilename)
-                time.sleep(0.25)
+                if self.LockFile is not None :
+                    self.LockFile.close()
+                time.sleep(0.25 + random.random())
 
     def readConfig(self) :
         """Reads the configuration file."""
