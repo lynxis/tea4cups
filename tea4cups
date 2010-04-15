@@ -3,7 +3,7 @@
 
 # Tea4CUPS : Tee for CUPS
 #
-# (c) 2005-2009 Jerome Alet <alet@librelogiciel.com>
+# (c) 2005-2010 Jerome Alet <alet@librelogiciel.com>
 # (c) 2005 Peter Stuge <stuge-tea4cups@cdy.org>
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -28,7 +28,7 @@
 
 Licensing terms :
 
-  (c) 2005, 2006, 2007 Jerome Alet <alet@librelogiciel.com>
+  (c) 2005-2010 Jerome Alet <alet@librelogiciel.com>
   (c) 2005 Peter Stuge <stuge-tea4cups@cdy.org>
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -341,6 +341,13 @@ CUPS_PRINTER_NOT_SHARED = 0x2000
 CUPS_PRINTER_AUTHENTICATED = 0x4000
 CUPS_PRINTER_COMMANDS = 0x8000
 CUPS_PRINTER_OPTIONS = 0xe6ff
+
+CUPS_BACKEND_OK = 0
+CUPS_BACKEND_FAILED = 1
+CUPS_BACKEND_AUTH_REQUIRED = 2
+CUPS_BACKEND_HOLD = 3
+CUPS_BACKEND_STOP = 4
+CUPS_BACKEND_CANCEL = 5
 
 class FakeAttribute :
     """Fakes an IPPRequest attribute to simplify usage syntax."""
@@ -1289,7 +1296,7 @@ class CupsBackend :
 
     def runBranches(self) :
         """Launches each hook defined for the current print queue."""
-        self.isCancelled = 0    # did a prehook cancel the print job ?
+        self.isCancelled = False    # did a prehook cancel the print job ?
         serialize = isTrue(self.getPrintQueueOption(self.PrinterName, "serialize", ignore=1))
         self.pipes = { 0: (0, 1) }
         branches = self.enumBranches(self.PrinterName, "prehook")
@@ -1298,10 +1305,12 @@ class CupsBackend :
         retcode = self.runCommands("prehook", branches, serialize)
         for p in [ (k, v) for (k, v) in self.pipes.items() if k != 0 ] :
             os.close(p[1][1])
-        if not self.isCancelled :
+        if self.isCancelled :
+            retcode = CUPS_BACKEND_CANCEL # Job cancelled, for CUPS.
+        elif retcode == CUPS_BACKEND_OK :
             if self.RealBackend :
                 retcode = self.launchOriginalBackend()
-                if retcode :
+                if retcode != CUPS_BACKEND_OK :
                     onfail = self.getPrintQueueOption(self.PrinterName, \
                                                       "onfail", ignore=1)
                     if onfail :
@@ -1312,11 +1321,10 @@ class CupsBackend :
             branches = self.enumBranches(self.PrinterName, "posthook")
             if self.runCommands("posthook", branches, serialize) :
                 self.logInfo("An error occured during the execution of posthooks.", "warn")
-        else :
-            retcode = 5 # Job cancelled, for CUPS.
+
         for p in [ (k, v) for (k, v) in self.pipes.items() if k != 0 ] :
             os.close(p[1][0])
-        if not retcode :
+        if retcode == CUPS_BACKEND_OK :
             self.logInfo("OK")
         else :
             self.logInfo("An error occured, please check CUPS' error_log file.")
@@ -1357,7 +1365,7 @@ class CupsBackend :
 
     def runCommands(self, btype, branches, serialize) :
         """Runs the commands for a particular branch type."""
-        exitcode = 0
+        exitcode = CUPS_BACKEND_OK
         btype = btype.lower()
         btypetitle = btype.title()
         branchlist = branches.keys()
@@ -1370,10 +1378,14 @@ class CupsBackend :
                 if retcode :
                     if (btype == "prehook") and (retcode == 255) : # -1
                         self.logInfo("Job %s cancelled by prehook %s" % (self.JobId, branch))
-                        self.isCancelled = 1
+                        self.isCancelled = True
+                    elif (btype == "prehook") and (retcode == 254) : # -2
+                        self.logInfo("Job %s hook processing stopped by prehook %s" % (self.JobId, branch))
+                        exitcode = CUPS_BACKEND_FAILED
+                        break
                     else :
                         self.logInfo("%s %s on printer %s didn't exit successfully." % (btypetitle, branch, self.PrinterName), "error")
-                        exitcode = 1
+                        exitcode = CUPS_BACKEND_FAILED
             self.logDebug("End serialized %ss" % btypetitle)
         else :
             self.logDebug("Begin forked %ss" % btypetitle)
@@ -1394,10 +1406,10 @@ class CupsBackend :
                 if retcode :
                     if (btype == "prehook") and (retcode == 255) : # -1
                         self.logInfo("Job %s cancelled by prehook %s" % (self.JobId, branch))
-                        self.isCancelled = 1
+                        self.isCancelled = True
                     else :
                         self.logInfo("%s %s (PID %s) on printer %s didn't exit successfully." % (btypetitle, branch, pid, self.PrinterName), "error")
-                        exitcode = 1
+                        exitcode = CUPS_BACKEND_FAILED
             self.logDebug("End forked %ss" % btypetitle)
         return exitcode
 
@@ -1417,7 +1429,7 @@ class CupsBackend :
         loopcount = 1
         while 1 :
             retcode = self.runOriginalBackend()
-            if not retcode :
+            if retcode == CUPS_BACKEND_OK :
                 break
             else :
                 if (not number) or (loopcount < number) :
@@ -1458,15 +1470,16 @@ class CupsBackend :
         if os.WIFEXITED(status) :
             status = os.WEXITSTATUS(status)
             if status :
-                self.logInfo("CUPS backend %s returned %d." % (originalbackend, \
-                                                             status), "error")
+                self.logInfo("CUPS backend %s returned %d." % (originalbackend,
+                                                               status),
+                             "error")
             return status
         elif not killed :
             self.logInfo("CUPS backend %s died abnormally." % originalbackend, \
                                                               "error")
             return -1
         else :
-            return 1
+            return CUPS_BACKEND_FAILED
 
 if __name__ == "__main__" :
     # This is a CUPS backend, we should act and die like a CUPS backend
