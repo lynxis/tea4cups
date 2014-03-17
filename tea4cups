@@ -76,7 +76,7 @@ import time
 import pwd
 import errno
 import random
-import md5
+from hashlib import md5
 import io
 import shlex
 import tempfile
@@ -1243,7 +1243,7 @@ class CupsBackend :
         CHUNK = 64*1024         # read 64 Kb at a time
         dummy = 0
         sizeread = 0
-        checksum = md5.new()
+        checksum = md5()
         outfile = open(self.DataFile, "wb")
         while 1 :
             data = infile.read(CHUNK)
