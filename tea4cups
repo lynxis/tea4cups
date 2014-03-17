@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Tea4CUPS : Tee for CUPS
+# Tea4CUPS: Tee for CUPS
 #
 # (c) 2005-2013 Jerome Alet <alet@librelogiciel.com>
 # (c) 2005 Peter Stuge <stuge-tea4cups@cdy.org>
@@ -26,7 +26,7 @@
 """Tea4CUPS is the Swiss Army's knife of the CUPS Administrator.
 
 
-Licensing terms :
+Licensing terms:
 
   (c) 2005-2010 Jerome Alet <alet@librelogiciel.com>
   (c) 2005 Peter Stuge <stuge-tea4cups@cdy.org>
@@ -45,29 +45,29 @@ Licensing terms :
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 
 
-Setup :
+Setup:
 
-  Copy the different files where they belong :
+  Copy the different files where they belong:
 
     $ cp tea4cups /usr/lib/cups/backend/
     $ chown root.root /usr/lib/cups/backend/tea4cups
     $ chmod 700 /usr/lib/cups/backend/tea4cups
     $ cp tea4cups.conf /etc/cupsd/
 
-  Now edit the configuration file to suit your needs :
+  Now edit the configuration file to suit your needs:
 
     $ vi /etc/cupsd/tea4cups.conf
 
-    NB : you can use emacs as well :-)
+    NB: you can use emacs as well:-)
 
-  Finally restart CUPS :
+  Finally restart CUPS:
 
     $ /etc/init.d/cupsys restart
 
   You can now create "Tea4CUPS Managed" print queues from
   CUPS' web interface, or using lpadmin.
 
-Send bug reports to : alet@librelogiciel.com
+Send bug reports to: alet@librelogiciel.com
 """
 
 import sys
@@ -98,11 +98,11 @@ class TeeError(Exception):
         return self.message
     __str__ = __repr__
 
-class ConfigError(TeeError) :
+class ConfigError(TeeError):
     """Configuration related exceptions."""
     pass
 
-class IPPError(TeeError) :
+class IPPError(TeeError):
     """IPP related exceptions."""
     pass
 
@@ -349,53 +349,53 @@ CUPS_BACKEND_HOLD = 3
 CUPS_BACKEND_STOP = 4
 CUPS_BACKEND_CANCEL = 5
 
-class FakeAttribute :
+class FakeAttribute:
     """Fakes an IPPRequest attribute to simplify usage syntax."""
-    def __init__(self, request, name) :
+    def __init__(self, request, name):
         """Initializes the fake attribute."""
         self.request = request
         self.name = name
 
-    def __setitem__(self, key, value) :
+    def __setitem__(self, key, value):
         """Appends the value to the real attribute."""
         attributeslist = getattr(self.request, "_%s_attributes" % self.name)
-        for i in range(len(attributeslist)) :
+        for i in range(len(attributeslist)):
             attribute = attributeslist[i]
-            for j in range(len(attribute)) :
+            for j in range(len(attribute)):
                 (attrname, attrvalue) = attribute[j]
-                if attrname == key :
+                if attrname == key:
                     attribute[j][1].append(value)
                     return
             attribute.append((key, [value]))
 
-    def __getitem__(self, key) :
+    def __getitem__(self, key):
         """Returns an attribute's value."""
         answer = []
         attributeslist = getattr(self.request, "_%s_attributes" % self.name)
-        for i in range(len(attributeslist)) :
+        for i in range(len(attributeslist)):
             attribute = attributeslist[i]
-            for j in range(len(attribute)) :
+            for j in range(len(attribute)):
                 (attrname, attrvalue) = attribute[j]
-                if attrname == key :
+                if attrname == key:
                     answer.extend(attrvalue)
-        if answer :
+        if answer:
             return answer
         raise KeyError(key)
 
-class IPPRequest :
+class IPPRequest:
     """A class for IPP requests."""
     attributes_types = ("operation", "job", "printer", "unsupported", \
                                      "subscription", "event_notification")
     def __init__(self, data="", version=IPP_VERSION,
                                 operation_id=None, \
                                 request_id=None, \
-                                debug=False) :
+                                debug=False):
         """Initializes an IPP Message object.
 
-           Parameters :
+           Parameters:
 
-             data : the complete IPP Message's content.
-             debug : a boolean value to output debug info on stderr.
+             data: the complete IPP Message's content.
+             debug: a boolean value to output debug info on stderr.
         """
         self.debug = debug
         self._data = data
@@ -407,7 +407,7 @@ class IPPRequest :
         self.setRequestId(request_id)
         self.data = ""
 
-        for attrtype in self.attributes_types :
+        for attrtype in self.attributes_types:
             setattr(self, "_%s_attributes" % attrtype, [[]])
 
         # Initialize tags
@@ -442,7 +442,7 @@ class IPPRequest :
         self.tags[0x31] = "dateTime"
         self.tags[0x32] = "resolution"
         self.tags[0x33] = "rangeOfInteger"
-        self.tags[0x34] = "begCollection" # TODO : find sample files for testing
+        self.tags[0x34] = "begCollection" # TODO: find sample files for testing
         self.tags[0x35] = "textWithLanguage"
         self.tags[0x36] = "nameWithLanguage"
         self.tags[0x37] = "endCollection"
@@ -461,105 +461,105 @@ class IPPRequest :
 
         # Reverse mapping to generate IPP messages
         self.tagvalues = {}
-        for i in range(len(self.tags)) :
+        for i in range(len(self.tags)):
             value = self.tags[i]
-            if value is not None :
+            if value is not None:
                 self.tagvalues[value] = i
 
-    def __getattr__(self, name) :
+    def __getattr__(self, name):
         """Fakes attribute access."""
-        if name in self.attributes_types :
+        if name in self.attributes_types:
             return FakeAttribute(self, name)
-        else :
+        else:
             raise AttributeError(name)
 
-    def __str__(self) :
+    def __str__(self):
         """Returns the parsed IPP message in a readable form."""
-        if not self.parsed :
+        if not self.parsed:
             return ""
         mybuffer = []
-        mybuffer.append("IPP version : %s.%s" % self.version)
-        mybuffer.append("IPP operation Id : 0x%04x" % self.operation_id)
-        mybuffer.append("IPP request Id : 0x%08x" % self.request_id)
-        for attrtype in self.attributes_types :
-            for attribute in getattr(self, "_%s_attributes" % attrtype) :
-                if attribute :
-                    mybuffer.append("%s attributes :" % attrtype.title())
-                for (name, value) in attribute :
-                    mybuffer.append("  %s : %s" % (name, value))
-        if self.data :
-            mybuffer.append("IPP datas : %s" % repr(self.data))
+        mybuffer.append("IPP version: %s.%s" % self.version)
+        mybuffer.append("IPP operation Id: 0x%04x" % self.operation_id)
+        mybuffer.append("IPP request Id: 0x%08x" % self.request_id)
+        for attrtype in self.attributes_types:
+            for attribute in getattr(self, "_%s_attributes" % attrtype):
+                if attribute:
+                    mybuffer.append("%s attributes:" % attrtype.title())
+                for (name, value) in attribute:
+                    mybuffer.append("  %s: %s" % (name, value))
+        if self.data:
+            mybuffer.append("IPP datas: %s" % repr(self.data))
         return "\n".join(mybuffer)
 
-    def logDebug(self, msg) :
+    def logDebug(self, msg):
         """Prints a debug message."""
         if self.debug :
             sys.stderr.write("%s\n" % msg)
             sys.stderr.flush()
 
-    def setVersion(self, version) :
+    def setVersion(self, version):
         """Sets the request's operation id."""
-        if version is not None :
-            try :
+        if version is not None:
+            try:
                 self.version = [int(p) for p in version.split(".")]
-            except AttributeError :
-                if len(version) == 2 : # 2-tuple
+            except AttributeError:
+                if len(version) == 2: # 2-tuple
                     self.version = version
-                else :
-                    try :
+                else:
+                    try:
                         self.version = [int(p) for p in str(float(version)).split(".")]
-                    except :
+                    except:
                         self.version = [int(p) for p in IPP_VERSION.split(".")]
 
-    def setOperationId(self, opid) :
+    def setOperationId(self, opid):
         """Sets the request's operation id."""
         self.operation_id = opid
 
-    def setRequestId(self, reqid) :
+    def setRequestId(self, reqid):
         """Sets the request's request id."""
         self.request_id = reqid
 
-    def dump(self) :
+    def dump(self):
         """Generates an IPP Message.
 
            Returns the message as a string of text.
         """
         mybuffer = []
-        if None not in (self.version, self.operation_id) :
+        if None not in (self.version, self.operation_id):
             mybuffer.append(chr(self.version[0]) + chr(self.version[1]))
             mybuffer.append(pack(">H", self.operation_id))
             mybuffer.append(pack(">I", self.request_id or 1))
-            for attrtype in self.attributes_types :
-                for attribute in getattr(self, "_%s_attributes" % attrtype) :
-                    if attribute :
+            for attrtype in self.attributes_types:
+                for attribute in getattr(self, "_%s_attributes" % attrtype):
+                    if attribute:
                         mybuffer.append(chr(self.tagvalues["%s-attributes-tag" % attrtype]))
-                    for (attrname, value) in attribute :
+                    for (attrname, value) in attribute:
                         nameprinted = 0
-                        for (vtype, val) in value :
+                        for (vtype, val) in value:
                             mybuffer.append(chr(self.tagvalues[vtype]))
-                            if not nameprinted :
+                            if not nameprinted:
                                 mybuffer.append(pack(">H", len(attrname)))
                                 mybuffer.append(attrname)
                                 nameprinted = 1
-                            else :
+                            else:
                                 mybuffer.append(pack(">H", 0))
-                            if vtype in ("integer", "enum") :
+                            if vtype in ("integer", "enum"):
                                 mybuffer.append(pack(">H", 4))
                                 mybuffer.append(pack(">I", val))
-                            elif vtype == "boolean" :
+                            elif vtype == "boolean":
                                 mybuffer.append(pack(">H", 1))
                                 mybuffer.append(chr(val))
-                            else :
+                            else:
                                 mybuffer.append(pack(">H", len(val)))
                                 mybuffer.append(val)
             mybuffer.append(chr(self.tagvalues["end-of-attributes-tag"]))
         mybuffer.append(self.data)
         return "".join(mybuffer)
 
-    def parse(self) :
+    def parse(self):
         """Parses an IPP Request.
 
-           NB : Only a subset of RFC2910 is implemented.
+           NB: Only a subset of RFC2910 is implemented.
         """
         self._curname = None
         self._curattributes = None
@@ -570,99 +570,99 @@ class IPPRequest :
         self.position = 8
         endofattributes = self.tagvalues["end-of-attributes-tag"]
         maxdelimiter = self.tagvalues["event_notification-attributes-tag"]
-        nulloffset = lambda : 0
-        try :
+        nulloffset = lambda: 0
+        try:
             tag = ord(self._data[self.position])
-            while tag != endofattributes :
+            while tag != endofattributes:
                 self.position += 1
                 name = self.tags[tag]
-                if name is not None :
+                if name is not None:
                     func = getattr(self, name.replace("-", "_"), nulloffset)
                     self.position += func()
-                    if ord(self._data[self.position]) > maxdelimiter :
+                    if ord(self._data[self.position]) > maxdelimiter:
                         self.position -= 1
                         continue
                 oldtag = tag
                 tag = ord(self._data[self.position])
-                if tag == oldtag :
+                if tag == oldtag:
                     self._curattributes.append([])
-        except IndexError :
+        except IndexError:
             raise IPPError("Unexpected end of IPP message.")
 
         self.data = self._data[self.position+1:]
         self.parsed = True
 
-    def parseTag(self) :
+    def parseTag(self):
         """Extracts information from an IPP tag."""
         pos = self.position
         tagtype = self.tags[ord(self._data[pos])]
         pos += 1
         posend = pos2 = pos + 2
         namelength = unpack(">H", self._data[pos:pos2])[0]
-        if not namelength :
+        if not namelength:
             name = self._curname
-        else :
+        else:
             posend += namelength
             self._curname = name = self._data[pos2:posend]
         pos2 = posend + 2
         valuelength = unpack(">H", self._data[posend:pos2])[0]
         posend = pos2 + valuelength
         value = self._data[pos2:posend]
-        if tagtype in ("integer", "enum") :
+        if tagtype in ("integer", "enum"):
             value = unpack(">I", value)[0]
-        elif tagtype == "boolean" :
+        elif tagtype == "boolean":
             value = ord(value)
-        try :
+        try:
             (oldname, oldval) = self._curattributes[-1][-1]
-            if oldname == name :
+            if oldname == name:
                 oldval.append((tagtype, value))
-            else :
+            else:
                 raise IndexError
-        except IndexError :
+        except IndexError:
             self._curattributes[-1].append((name, [(tagtype, value)]))
-        self.logDebug("%s(%s) : %s" % (name, tagtype, value))
+        self.logDebug("%s(%s): %s" % (name, tagtype, value))
         return posend - self.position
 
-    def operation_attributes_tag(self) :
+    def operation_attributes_tag(self):
         """Indicates that the parser enters into an operation-attributes-tag group."""
         self._curattributes = self._operation_attributes
         return self.parseTag()
 
-    def job_attributes_tag(self) :
+    def job_attributes_tag(self):
         """Indicates that the parser enters into a job-attributes-tag group."""
         self._curattributes = self._job_attributes
         return self.parseTag()
 
-    def printer_attributes_tag(self) :
+    def printer_attributes_tag(self):
         """Indicates that the parser enters into a printer-attributes-tag group."""
         self._curattributes = self._printer_attributes
         return self.parseTag()
 
-    def unsupported_attributes_tag(self) :
+    def unsupported_attributes_tag(self):
         """Indicates that the parser enters into an unsupported-attributes-tag group."""
         self._curattributes = self._unsupported_attributes
         return self.parseTag()
 
-    def subscription_attributes_tag(self) :
+    def subscription_attributes_tag(self):
         """Indicates that the parser enters into a subscription-attributes-tag group."""
         self._curattributes = self._subscription_attributes
         return self.parseTag()
 
-    def event_notification_attributes_tag(self) :
+    def event_notification_attributes_tag(self):
         """Indicates that the parser enters into an event-notification-attributes-tag group."""
         self._curattributes = self._event_notification_attributes
         return self.parseTag()
 
 
-class CUPS :
+class CUPS:
     """A class for a CUPS instance."""
-    def __init__(self, url=None, username=None, password=None, charset="utf-8", language="en-us", debug=False) :
+    def __init__(self, url=None, username=None, password=None, charset="utf-8", language="en-us", debug=False):
         """Initializes the CUPS instance."""
-        if url is not None :
+        if url is not None:
             self.url = url.replace("ipp://", "http://")
-            if self.url.endswith("/") :
+            if self.url.endswith("/"):
                 self.url = self.url[:-1]
-        else :
+        else:
             self.url = self.getDefaultURL()
         self.username = username
         self.password = password
@@ -673,35 +673,35 @@ class CUPS :
         self.lastErrorMessage = None
         self.requestId = None
 
-    def getDefaultURL(self) :
+    def getDefaultURL(self):
         """Builds a default URL."""
-        # TODO : encryption methods.
+        # TODO: encryption methods.
         server = os.environ.get("CUPS_SERVER") or "localhost"
         port = os.environ.get("IPP_PORT") or 631
-        if server.startswith("/") :
+        if server.startswith("/"):
             # it seems it's a unix domain socket.
             # we can't handle this right now, so we use the default instead.
             return "http://localhost:%s" % port
-        else :
+        else:
             return "http://%s:%s" % (server, port)
 
-    def identifierToURI(self, service, ident) :
+    def identifierToURI(self, service, ident):
         """Transforms an identifier into a particular URI depending on requested service."""
         return "%s/%s/%s" % (self.url.replace("http://", "ipp://"),
                              service,
                              ident)
 
-    def nextRequestId(self) :
+    def nextRequestId(self):
         """Increments the current request id and returns the new value."""
-        try :
+        try:
             self.requestId += 1
-        except TypeError :
+        except TypeError:
             self.requestId = 1
         return self.requestId
 
-    def newRequest(self, operationid=None) :
+    def newRequest(self, operationid=None):
         """Generates a new empty request."""
-        if operationid is not None :
+        if operationid is not None:
             req = IPPRequest(operation_id=operationid, \
                              request_id=self.nextRequestId(), \
                              debug=self.debug)
@@ -709,14 +709,14 @@ class CUPS :
             req.operation["attributes-natural-language"] = ("naturalLanguage", self.language)
             return req
 
-    def doRequest(self, req, url=None) :
+    def doRequest(self, req, url=None):
         """Sends a request to the CUPS server.
            returns a new IPPRequest object, containing the parsed answer.
         """
         connexion = urllib.request.Request(url=url or self.url, \
                              data=req.dump())
         connexion.add_header("Content-Type", "application/ipp")
-        if self.username :
+        if self.username:
             pwmanager = urllib.request.HTTPPasswordMgrWithDefaultRealm()
             pwmanager.add_password(None, \
                                    "%s%s" % (connexion.get_host(), connexion.get_selector()), \
@@ -727,37 +727,37 @@ class CUPS :
             urllib.request.install_opener(opener)
         self.lastError = None
         self.lastErrorMessage = None
-        try :
+        try:
             response = urllib.request.urlopen(connexion)
-        except (urllib.error.URLError, urllib.error.HTTPError, socket.error) as error :
+        except (urllib.error.URLError, urllib.error.HTTPError, socket.error) as error:
             self.lastError = error
             self.lastErrorMessage = str(error)
             return None
-        else :
+        else:
             datas = response.read()
             ippresponse = IPPRequest(datas)
             ippresponse.parse()
             return ippresponse
 
-    def getPPD(self, queuename) :
+    def getPPD(self, queuename):
         """Retrieves the PPD for a particular queuename."""
         req = self.newRequest(IPP_GET_PRINTER_ATTRIBUTES)
         req.operation["printer-uri"] = ("uri", self.identifierToURI("printers", queuename))
-        for attrib in ("printer-uri-supported", "printer-type", "member-uris") :
+        for attrib in ("printer-uri-supported", "printer-type", "member-uris"):
             req.operation["requested-attributes"] = ("nameWithoutLanguage", attrib)
-        return self.doRequest(req)  # TODO : get the PPD from the actual print server
+        return self.doRequest(req)  # TODO: get the PPD from the actual print server
 
-    def getDefault(self) :
+    def getDefault(self):
         """Retrieves CUPS' default printer."""
         return self.doRequest(self.newRequest(CUPS_GET_DEFAULT))
 
-    def getJobAttributes(self, jobid) :
+    def getJobAttributes(self, jobid):
         """Retrieves a print job's attributes."""
         req = self.newRequest(IPP_GET_JOB_ATTRIBUTES)
         req.operation["job-uri"] = ("uri", self.identifierToURI("jobs", jobid))
         return self.doRequest(req)
 
-    def getPrinters(self) :
+    def getPrinters(self):
         """Returns the list of print queues names."""
         req = self.newRequest(CUPS_GET_PRINTERS)
         req.operation["requested-attributes"] = ("keyword", "printer-name")
@@ -765,7 +765,7 @@ class CUPS :
         req.operation["printer-type-mask"] = ("enum", CUPS_PRINTER_CLASS)
         return [printer[1] for printer in self.doRequest(req).printer["printer-name"]]
 
-    def getDevices(self) :
+    def getDevices(self):
         """Returns a list of devices as (deviceclass, deviceinfo, devicemakeandmodel, deviceuri) tuples."""
         answer = self.doRequest(self.newRequest(CUPS_GET_DEVICES))
         return list(zip([d[1] for d in answer.printer["device-class"]], \
@@ -773,7 +773,7 @@ class CUPS :
                    [d[1] for d in answer.printer["device-make-and-model"]], \
                    [d[1] for d in answer.printer["device-uri"]]))
 
-    def getPPDs(self) :
+    def getPPDs(self):
         """Returns a list of PPDs as (ppdnaturallanguage, ppdmake, ppdmakeandmodel, ppdname) tuples."""
         answer = self.doRequest(self.newRequest(CUPS_GET_PPDS))
         return list(zip([d[1] for d in answer.printer["ppd-natural-language"]], \
@@ -789,78 +789,78 @@ class CUPS :
                                       naturallanguage=None,
                                       leaseduration=None,
                                       timeinterval=None,
-                                      jobid=None) :
+                                      jobid=None):
         """Creates a job, printer or server subscription.
 
-           uri : the subscription's uri, e.g. ipp://server
-           events : a list of events to subscribe to, e.g. ["printer-added", "printer-deleted"]
-           recipient : the notifier's uri
-           pullmethod : the pull method to use
-           charset : the charset to use when sending notifications
-           naturallanguage : the language to use when sending notifications
-           leaseduration : the duration of the lease in seconds
-           timeinterval : the interval of time during notifications
-           jobid : the optional job id in case of a job subscription
+           uri: the subscription's uri, e.g. ipp://server
+           events: a list of events to subscribe to, e.g. ["printer-added", "printer-deleted"]
+           recipient: the notifier's uri
+           pullmethod: the pull method to use
+           charset: the charset to use when sending notifications
+           naturallanguage: the language to use when sending notifications
+           leaseduration: the duration of the lease in seconds
+           timeinterval: the interval of time during notifications
+           jobid: the optional job id in case of a job subscription
         """
-        if jobid is not None :
+        if jobid is not None:
             opid = IPP_CREATE_JOB_SUBSCRIPTION
             uritype = "job-uri"
-        else :
+        else:
             opid = IPP_CREATE_PRINTER_SUBSCRIPTION
             uritype = "printer-uri"
         req = self.newRequest(opid)
         req.operation[uritype] = ("uri", uri)
-        for event in events :
+        for event in events:
             req.subscription["notify-events"] = ("keyword", event)
-        if userdata is not None :
+        if userdata is not None:
             req.subscription["notify-user-data"] = ("octetString-with-an-unspecified-format", userdata)
-        if recipient is not None :
+        if recipient is not None:
             req.subscription["notify-recipient"] = ("uri", recipient)
-        if pullmethod is not None :
+        if pullmethod is not None:
             req.subscription["notify-pull-method"] = ("keyword", pullmethod)
-        if charset is not None :
+        if charset is not None:
             req.subscription["notify-charset"] = ("charset", charset)
-        if naturallanguage is not None :
+        if naturallanguage is not None:
             req.subscription["notify-natural-language"] = ("naturalLanguage", naturallanguage)
-        if leaseduration is not None :
+        if leaseduration is not None:
             req.subscription["notify-lease-duration"] = ("integer", leaseduration)
-        if timeinterval is not None :
+        if timeinterval is not None:
             req.subscription["notify-time-interval"] = ("integer", timeinterval)
-        if jobid is not None :
+        if jobid is not None:
             req.subscription["notify-job-id"] = ("integer", jobid)
         return self.doRequest(req)
 
-    def cancelSubscription(self, uri, subscriptionid, jobid=None) :
+    def cancelSubscription(self, uri, subscriptionid, jobid=None):
         """Cancels a subscription.
 
-           uri : the subscription's uri.
-           subscriptionid : the subscription's id.
-           jobid : the optional job's id.
+           uri: the subscription's uri.
+           subscriptionid: the subscription's id.
+           jobid: the optional job's id.
         """
         req = self.newRequest(IPP_CANCEL_SUBSCRIPTION)
-        if jobid is not None :
+        if jobid is not None:
             uritype = "job-uri"
-        else :
+        else:
             uritype = "printer-uri"
         req.operation[uritype] = ("uri", uri)
         req.event_notification["notify-subscription-id"] = ("integer", subscriptionid)
         return self.doRequest(req)
 
 
-class FakeConfig :
+class FakeConfig:
     """Fakes a configuration file parser."""
-    def get(self, section, option, raw=0) :
+    def get(self, section, option, raw=0):
         """Fakes the retrieval of an option."""
-        raise ConfigError("Invalid configuration file : no option %s in section [%s]" % (option, section))
+        raise ConfigError("Invalid configuration file: no option %s in section [%s]" % (option, section))
 
-def isTrue(option) :
+def isTrue(option):
     """Returns 1 if option is set to true, else 0."""
-    if (option is not None) and (option.upper().strip() in ['Y', 'YES', '1', 'ON', 'T', 'TRUE']) :
+    if (option is not None) and (option.upper().strip() in ['Y', 'YES', '1', 'ON', 'T', 'TRUE']):
         return 1
-    else :
+    else:
         return 0
 
-def getCupsConfigDirectives(directives=[]) :
+def getCupsConfigDirectives(directives=[]):
     """Retrieves some CUPS directives from its configuration file.
 
        Returns a mapping with lowercased directives as keys and
@@ -869,27 +869,27 @@ def getCupsConfigDirectives(directives=[]) :
     dirvalues = {}
     cupsroot = os.environ.get("CUPS_SERVERROOT", "/etc/cups")
     cupsdconf = os.path.join(cupsroot, "cupsd.conf")
-    try :
+    try:
         conffile = open(cupsdconf, "r")
-    except IOError :
+    except IOError:
         raise TeeError("Unable to open %s" % cupsdconf)
-    else :
-        for line in conffile.readlines() :
+    else:
+        for line in conffile.readlines():
             linecopy = line.strip().lower()
-            for di in [d.lower() for d in directives] :
-                if linecopy.startswith("%s " % di) :
-                    try :
+            for di in [d.lower() for d in directives]:
+                if linecopy.startswith("%s " % di):
+                    try:
                         val = line.split()[1]
-                    except :
+                    except:
                         pass # ignore errors, we take the last value in any case.
-                    else :
+                    else:
                         dirvalues[di] = val
         conffile.close()
     return dirvalues
 
-class CupsBackend :
+class CupsBackend:
     """Base class for tools with no database access."""
-    def __init__(self) :
+    def __init__(self):
         """Initializes the CUPS backend wrapper."""
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
         signal.signal(signal.SIGPIPE, signal.SIG_IGN)
@@ -919,7 +919,7 @@ class CupsBackend :
         self.conffile = None
         self.LockFile = None
 
-    def waitForLock(self) :
+    def waitForLock(self):
         """Waits until we can acquire the lock file."""
         random.seed()
         lockfilename = self.DeviceURI.replace("/", ".")
@@ -930,8 +930,8 @@ class CupsBackend :
         lockfilename = os.path.join(self.Directory, "%s-%s..LCK" % (self.myname, lockfilename))
         self.logDebug("Waiting for lock %s to become available..." % lockfilename)
         haslock = False
-        while not haslock :
-            try :
+        while not haslock:
+            try:
                 # open the lock file, optionally creating it if needed.
                 self.LockFile = None
                 self.LockFile = open(lockfilename, "a+")
@@ -951,25 +951,25 @@ class CupsBackend :
                 self.LockFile.seek(0, 0)
                 self.LockFile.write(str(self.pid))
                 self.LockFile.flush()
-            except IOError :
+            except IOError:
                 self.logDebug("I/O Error while waiting for lock %s" % lockfilename)
-                if self.LockFile is not None :
+                if self.LockFile is not None:
                     self.LockFile.close()
                 time.sleep(0.25 + random.random())
 
-    def readConfig(self) :
+    def readConfig(self):
         """Reads the configuration file."""
         confdir = os.environ.get("CUPS_SERVERROOT", ".")
         self.conffile = os.path.join(confdir, "%s.conf" % self.myname)
-        if os.path.isfile(self.conffile) :
+        if os.path.isfile(self.conffile):
             self.config = configparser.ConfigParser()
             self.config.read([self.conffile])
             self.debug = isTrue(self.getGlobalOption("debug", ignore=1))
-        else :
+        else:
             self.config = FakeConfig()
             self.debug = 1      # no config, so force debug mode !
 
-    def logInfo(self, message, level="info") :
+    def logInfo(self, message, level="info"):
         """Logs a message to CUPS' error_log file."""
         try :
             sys.stderr.write("%s: %s v%s (PID %i) : %s\n" % (level.upper(), self.MyName, __version__, os.getpid(), message))
@@ -977,56 +977,56 @@ class CupsBackend :
         except IOError :
             pass
 
-    def logDebug(self, message) :
+    def logDebug(self, message):
         """Logs something to debug output if debug is enabled."""
         if self.debug :
             self.logInfo(message, level="debug")
 
-    def getGlobalOption(self, option, ignore=0) :
+    def getGlobalOption(self, option, ignore=0):
         """Returns an option from the global section, or raises a ConfigError if ignore is not set, else returns None."""
-        try :
+        try:
             return self.config.get("global", option, raw=1)
-        except (configparser.NoSectionError, configparser.NoOptionError) :
-            if not ignore :
+        except (configparser.NoSectionError, configparser.NoOptionError):
+            if not ignore:
                 raise ConfigError("Option %s not found in section global of %s" % (option, self.conffile))
 
-    def getPrintQueueOption(self, printqueuename, option, ignore=0) :
+    def getPrintQueueOption(self, printqueuename, option, ignore=0):
         """Returns an option from the printer section, or the global section, or raises a ConfigError."""
         globaloption = self.getGlobalOption(option, ignore=1)
-        try :
+        try:
             return self.config.get(printqueuename, option, raw=1)
-        except (configparser.NoSectionError, configparser.NoOptionError) :
-            if globaloption is not None :
+        except (configparser.NoSectionError, configparser.NoOptionError):
+            if globaloption is not None:
                 return globaloption
-            elif not ignore :
+            elif not ignore:
                 raise ConfigError("Option %s not found in section [%s] of %s" % (option, printqueuename, self.conffile))
 
-    def enumBranches(self, printqueuename, branchtype="tee") :
+    def enumBranches(self, printqueuename, branchtype="tee"):
         """Returns the list of branchtypes branches for a particular section's."""
         branchbasename = "%s_" % branchtype.lower()
-        try :
+        try:
             globalbranches = [ (k, self.config.get("global", k)) for k in self.config.options("global") if k.startswith(branchbasename) ]
-        except configparser.NoSectionError as msg :
-            raise ConfigError("Invalid configuration file : %s" % msg)
-        try :
+        except configparser.NoSectionError as msg:
+            raise ConfigError("Invalid configuration file: %s" % msg)
+        try:
             sectionbranches = [ (k, self.config.get(printqueuename, k)) for k in self.config.options(printqueuename) if k.startswith(branchbasename) ]
-        except configparser.NoSectionError as msg :
-            self.logInfo("No section for print queue %s : %s" % (printqueuename, msg))
+        except configparser.NoSectionError as msg:
+            self.logInfo("No section for print queue %s: %s" % (printqueuename, msg))
             sectionbranches = []
         branches = {}
-        for (k, v) in globalbranches :
+        for (k, v) in globalbranches:
             value = v.strip()
-            if value :
+            if value:
                 branches[k] = value
-        for (k, v) in sectionbranches :
+        for (k, v) in sectionbranches:
             value = v.strip()
-            if value :
+            if value:
                 branches[k] = value # overwrite any global option or set a new value
-            else :
+            else:
                 del branches[k] # empty value disables a global option
         return branches
 
-    def discoverOtherBackends(self) :
+    def discoverOtherBackends(self):
         """Discovers the other CUPS backends.
 
            Executes each existing backend in turn in device enumeration mode.
@@ -1037,23 +1037,23 @@ class CupsBackend :
         # not available.
         available = []
         (directory, myname) = os.path.split(sys.argv[0])
-        if not directory :
+        if not directory:
             directory = "./"
         tmpdir = tempfile.gettempdir()
         lockfilename = os.path.join(tmpdir, "%s..LCK" % myname)
-        if os.path.exists(lockfilename) :
+        if os.path.exists(lockfilename):
             lockfile = open(lockfilename, "r")
             pid = int(lockfile.read())
             lockfile.close()
-            try :
+            try:
                 # see if the pid contained in the lock file is still running
                 os.kill(pid, 0)
-            except OSError as error :
-                if error.errno != errno.EPERM :
+            except OSError as error:
+                if error.errno != errno.EPERM:
                     # process doesn't exist anymore
                     os.remove(lockfilename)
 
-        if not os.path.exists(lockfilename) :
+        if not os.path.exists(lockfilename):
             lockfile = open(lockfilename, "w")
             lockfile.write("%i" % self.pid)
             lockfile.close()
@@ -1061,16 +1061,16 @@ class CupsBackend :
                                 for b in os.listdir(directory)
                                     if os.access(os.path.join(directory, b), os.X_OK) \
                                         and (b != myname)]
-            for backend in allbackends :
+            for backend in allbackends:
                 answer = os.popen(backend, "r")
-                try :
+                try:
                     devices = [deviceline.strip() for deviceline in answer.readlines()]
-                except :
+                except:
                     devices = []
                 status = answer.close()
-                if status is None :
-                    for d in devices :
-                        # each line is of the form :
+                if status is None:
+                    for d in devices:
+                        # each line is of the form:
                         # 'xxxx xxxx "xxxx xxx" "xxxx xxx"'
                         # so we have to decompose it carefully
                         fdevice = io.StringIO(d)
@@ -1078,21 +1078,21 @@ class CupsBackend :
                         tokenizer.wordchars = tokenizer.wordchars + \
                                                         r".:,?!~/\_$*-+={}[]()#"
                         arguments = []
-                        while 1 :
+                        while 1:
                             token = tokenizer.get_token()
-                            if token :
+                            if token:
                                 arguments.append(token)
-                            else :
+                            else:
                                 break
                         fdevice.close()
-                        try :
+                        try:
                             (devicetype, device, name, fullname) = arguments
-                        except ValueError :
+                        except ValueError:
                             pass    # ignore this 'bizarre' device
-                        else :
-                            if name.startswith('"') and name.endswith('"') :
+                        else:
+                            if name.startswith('"') and name.endswith('"'):
                                 name = name[1:-1]
-                            if fullname.startswith('"') and fullname.endswith('"') :
+                            if fullname.startswith('"') and fullname.endswith('"'):
                                 fullname = fullname[1:-1]
                             available.append('%s %s:%s "%s+%s" "%s managed %s"' \
                                                  % (devicetype, self.myname, device, self.MyName, name, self.MyName, fullname))
@@ -1101,16 +1101,16 @@ class CupsBackend :
                              % (self.myname, self.MyName, self.MyName))
         return available
 
-    def initBackend(self) :
+    def initBackend(self):
         """Initializes the backend's attributes."""
         self.JobId = sys.argv[1].strip()
         self.UserName = sys.argv[2].strip() or pwd.getpwuid(os.geteuid())[0] # use CUPS' user when printing test pages from CUPS' web interface
         self.Title = sys.argv[3].strip()
         self.Copies = int(sys.argv[4].strip())
         self.Options = sys.argv[5].strip()
-        if len(sys.argv) == 7 :
+        if len(sys.argv) == 7:
             self.InputFile = sys.argv[6] # read job's datas from file
-        else :
+        else:
             self.InputFile = None        # read job's datas from stdin
         self.PrinterName = os.environ.get("PRINTER", "")
         self.Directory = self.getPrintQueueOption(self.PrinterName, "directory", ignore=1) or tempfile.gettempdir()
@@ -1122,81 +1122,81 @@ class CupsBackend :
         # the environment before launching the real backend
         muststartwith = "%s:" % self.myname
         device_uri = os.environ.get("DEVICE_URI", "")
-        if device_uri.startswith(muststartwith) :
+        if device_uri.startswith(muststartwith):
             fulldevice_uri = device_uri[:]
             device_uri = fulldevice_uri[len(muststartwith):]
-            for dummy in range(2) :
-                if device_uri.startswith("/") :
+            for dummy in range(2):
+                if device_uri.startswith("/"):
                     device_uri = device_uri[1:]
-        try :
+        try:
             (backend, dummy) = device_uri.split(":", 1)
-        except ValueError :
-            if not device_uri :
+        except ValueError:
+            if not device_uri:
                 self.logDebug("Not attached to an existing print queue.")
                 backend = ""
-            else :
-                raise TeeError("Invalid DEVICE_URI : %s\n" % device_uri)
+            else:
+                raise TeeError("Invalid DEVICE_URI: %s\n" % device_uri)
 
         self.RealBackend = backend
         self.DeviceURI = device_uri
 
-        try :
-            cupsserver = CUPS() # TODO : username and password and/or encryption
+        try:
+            cupsserver = CUPS() # TODO: username and password and/or encryption
             answer = cupsserver.getJobAttributes(self.JobId)
-            if answer is None :  # probably connection refused because we
+            if answer is None:  # probably connection refused because we
                 raise ValueError # don't hande unix domain sockets yet.
             self.ControlFile = "NotUsedAnymore"
-        except :
+        except:
             (ippfilename, answer) = self.parseIPPRequestFile()
             self.ControlFile = ippfilename
 
-        try :
+        try:
             john = answer.job["job-originating-host-name"]
-        except (KeyError, AttributeError) :
-            try :
+        except (KeyError, AttributeError):
+            try:
                 john = answer.operation["job-originating-host-name"]
-            except (KeyError, AttributeError) :
+            except (KeyError, AttributeError):
                 john = (None, None)
-        if type(john) == type([]) :
+        if type(john) == type([]):
             john = john[-1]
         (dummy, self.ClientHost) = john
-        try :
+        try:
             jbing = answer.job["job-billing"]
-        except (KeyError, AttributeError) :
+        except (KeyError, AttributeError):
             jbing = (None, None)
-        if type(jbing) == type([]) :
+        if type(jbing) == type([]):
             jbing = jbing[-1]
         (dummy, self.JobBilling) = jbing
 
-    def parseIPPRequestFile(self) :
+    def parseIPPRequestFile(self):
         """Parses the IPP message file and returns a tuple (filename, parsedvalue)."""
         requestroot = os.environ.get("CUPS_REQUESTROOT")
-        if requestroot is None :
+        if requestroot is None:
             cupsdconf = getCupsConfigDirectives(["RequestRoot"])
             requestroot = cupsdconf.get("requestroot", "/var/spool/cups")
-        if (len(self.JobId) < 5) and self.JobId.isdigit() :
+        if (len(self.JobId) < 5) and self.JobId.isdigit():
             ippmessagefile = "c%05i" % int(self.JobId)
-        else :
+        else:
             ippmessagefile = "c%s" % self.JobId
         ippmessagefile = os.path.join(requestroot, ippmessagefile)
         ippmessage = {}
-        try :
+        try:
             ippdatafile = open(ippmessagefile)
-        except :
+        except:
             self.logInfo("Unable to open IPP message file %s" % ippmessagefile, "warn")
-        else :
+        else:
             self.logDebug("Parsing of IPP message file %s begins." % ippmessagefile)
-            try :
+            try:
                 ippmessage = IPPRequest(ippdatafile.read())
                 ippmessage.parse()
-            except IPPError as msg :
-                self.logInfo("Error while parsing %s : %s" % (ippmessagefile, msg), "warn")
-            else :
+            except IPPError as msg:
+                self.logInfo("Error while parsing %s: %s" % (ippmessagefile, msg), "warn")
+            else:
                 self.logDebug("Parsing of IPP message file %s ends." % ippmessagefile)
             ippdatafile.close()
         return (ippmessagefile, ippmessage)
 
-    def exportAttributes(self) :
+    def exportAttributes(self):
         """Exports our backend's attributes to the environment."""
         os.environ["DEVICE_URI"] = self.DeviceURI       # WARNING !
         os.environ["TEAPRINTERNAME"] = self.PrinterName
@@ -1214,30 +1214,30 @@ class CupsBackend :
         os.environ["TEABILLING"] = self.JobBilling or ""
         os.environ["TEACONTROLFILE"] = self.ControlFile
 
-    def saveDatasAndCheckSum(self) :
+    def saveDatasAndCheckSum(self):
         """Saves the input datas into a static file."""
         self.logDebug("Duplicating data stream into %s" % self.DataFile)
         mustclose = 0
-        if self.InputFile is not None :
+        if self.InputFile is not None:
             infile = open(self.InputFile, "rb")
             mustclose = 1
-        else :
+        else:
             infile = sys.stdin
 
         filtercommand = self.getPrintQueueOption(self.PrinterName, "filter", \
                                                  ignore=1)
-        if filtercommand :
+        if filtercommand:
             self.logDebug("Data stream will be filtered through [%s]" % filtercommand)
             filteroutput = "%s.filteroutput" % self.DataFile
             outf = open(filteroutput, "wb")
             filterstatus = self.stdioRedirSystem(filtercommand, infile.fileno(), outf.fileno())
             outf.close()
-            self.logDebug("Filter's output status : %s" % repr(filterstatus))
-            if mustclose :
+            self.logDebug("Filter's output status: %s" % repr(filterstatus))
+            if mustclose:
                 infile.close()
             infile = open(filteroutput, "rb")
             mustclose = 1
-        else :
+        else:
             self.logDebug("Data stream will be used as-is (no filter defined)")
 
         CHUNK = 64*1024         # read 64 Kb at a time
@@ -1245,26 +1245,26 @@ class CupsBackend :
         sizeread = 0
         checksum = md5()
         outfile = open(self.DataFile, "wb")
-        while 1 :
+        while 1:
             data = infile.read(CHUNK)
-            if not data :
+            if not data:
                 break
             sizeread += len(data)
             outfile.write(data)
             checksum.update(data)
-            if not (dummy % 32) : # Only display every 2 Mb
+            if not (dummy % 32): # Only display every 2 Mb
                 self.logDebug("%s bytes saved..." % sizeread)
             dummy += 1
         outfile.close()
 
-        if filtercommand :
+        if filtercommand:
             self.logDebug("Removing filter's output file %s" % filteroutput)
-            try :
+            try:
                 os.remove(filteroutput)
-            except :
+            except:
                 pass
 
-        if mustclose :
+        if mustclose:
             infile.close()
 
         self.logDebug("%s bytes saved..." % sizeread)
@@ -1273,250 +1273,250 @@ class CupsBackend :
         self.logDebug("Job %s is %s bytes long." % (self.JobId, self.JobSize))
         self.logDebug("Job %s MD5 sum is %s" % (self.JobId, self.JobMD5Sum))
 
-    def cleanUp(self) :
+    def cleanUp(self):
         """Cleans up the place."""
         self.logDebug("Cleaning up...")
         if (not isTrue(self.getPrintQueueOption(self.PrinterName, "keepfiles", ignore=1))) \
-            and os.path.exists(self.DataFile) :
-            try :
+            and os.path.exists(self.DataFile):
+            try:
                 os.remove(self.DataFile)
-            except OSError as msg :
-                self.logInfo("Problem when removing %s : %s" % (self.DataFile, msg), "error")
+            except OSError as msg:
+                self.logInfo("Problem when removing %s: %s" % (self.DataFile, msg), "error")
 
-        if self.LockFile is not None :
+        if self.LockFile is not None:
             self.logDebug("Removing lock...")
-            try :
+            try:
                 fcntl.lockf(self.LockFile, fcntl.LOCK_UN)
                 self.LockFile.close()
-            except :
+            except:
                 self.logInfo("Problem while unlocking.", "error")
-            else :
+            else:
                 self.logDebug("Lock removed.")
         self.logDebug("Clean.")
 
-    def runBranches(self) :
+    def runBranches(self):
         """Launches each hook defined for the current print queue."""
         self.isCancelled = False    # did a prehook cancel the print job ?
         serialize = isTrue(self.getPrintQueueOption(self.PrinterName, "serialize", ignore=1))
         self.pipes = { 0: (0, 1) }
         branches = self.enumBranches(self.PrinterName, "prehook")
-        for b in list(branches.keys()) :
+        for b in list(branches.keys()):
             self.pipes[b.split("_", 1)[1]] = os.pipe()
         retcode = self.runCommands("prehook", branches, serialize)
-        for p in [ (k, v) for (k, v) in list(self.pipes.items()) if k != 0 ] :
+        for p in [ (k, v) for (k, v) in list(self.pipes.items()) if k != 0 ]:
             os.close(p[1][1])
-        if self.isCancelled :
+        if self.isCancelled:
             retcode = CUPS_BACKEND_CANCEL # Job cancelled, for CUPS.
-        elif retcode == CUPS_BACKEND_OK :
-            if self.RealBackend :
+        elif retcode == CUPS_BACKEND_OK:
+            if self.RealBackend:
                 retcode = self.launchOriginalBackend()
-                if retcode != CUPS_BACKEND_OK :
+                if retcode != CUPS_BACKEND_OK:
                     onfail = self.getPrintQueueOption(self.PrinterName, \
                                                       "onfail", ignore=1)
-                    if onfail :
+                    if onfail:
                         self.logDebug("Launching onfail script %s" % onfail)
                         os.system(onfail)
 
             os.environ["TEASTATUS"] = str(retcode)
             branches = self.enumBranches(self.PrinterName, "posthook")
-            if self.runCommands("posthook", branches, serialize) :
+            if self.runCommands("posthook", branches, serialize):
                 self.logInfo("An error occured during the execution of posthooks.", "warn")
 
-        for p in [ (k, v) for (k, v) in list(self.pipes.items()) if k != 0 ] :
+        for p in [ (k, v) for (k, v) in list(self.pipes.items()) if k != 0 ]:
             os.close(p[1][0])
-        if retcode == CUPS_BACKEND_OK :
+        if retcode == CUPS_BACKEND_OK:
             self.logInfo("OK")
-        else :
+        else:
             self.logInfo("An error occured, please check CUPS' error_log file.")
         return retcode
 
-    def stdioRedirSystem(self, cmd, stdin=0, stdout=1) :
+    def stdioRedirSystem(self, cmd, stdin=0, stdout=1):
         """Launches a command with stdio redirected."""
         # Code contributed by Peter Stuge on May 23rd and June 7th 2005
         pid = os.fork()
-        if pid == 0 :
-            if stdin != 0 :
+        if pid == 0:
+            if stdin != 0:
                 os.dup2(stdin, 0)
                 os.close(stdin)
-            if stdout != 1 :
+            if stdout != 1:
                 os.dup2(stdout, 1)
                 os.close(stdout)
-            try :
+            try:
                 os.execl("/bin/sh", "sh", "-c", cmd)
-            except OSError as msg :
+            except OSError as msg:
                 self.logDebug("execl() failed: %s" % msg)
             os._exit(-1)
         status = os.waitpid(pid, 0)[1]
-        if os.WIFEXITED(status) :
+        if os.WIFEXITED(status):
             return os.WEXITSTATUS(status)
         return -1
 
-    def runCommand(self, branch, command) :
+    def runCommand(self, branch, command):
         """Runs a particular branch command."""
         # Code contributed by Peter Stuge on June 7th 2005
-        self.logDebug("Launching %s : %s" % (branch, command))
+        self.logDebug("Launching %s: %s" % (branch, command))
         btype, bname = branch.split("_", 1)
-        if bname not in list(self.pipes.keys()) :
+        if bname not in list(self.pipes.keys()):
             bname = 0
-        if btype == "prehook" :
+        if btype == "prehook":
             return self.stdioRedirSystem(command, 0, self.pipes[bname][1])
-        else :
+        else:
             return self.stdioRedirSystem(command, self.pipes[bname][0])
 
-    def runCommands(self, btype, branches, serialize) :
+    def runCommands(self, btype, branches, serialize):
         """Runs the commands for a particular branch type."""
         exitcode = CUPS_BACKEND_OK
         btype = btype.lower()
         btypetitle = btype.title()
         branchlist = list(branches.keys())
         branchlist.sort()
-        if serialize :
+        if serialize:
             self.logDebug("Begin serialized %ss" % btypetitle)
-            for branch in branchlist :
+            for branch in branchlist:
                 retcode = self.runCommand(branch, branches[branch])
                 self.logDebug("Exit code for %s %s on printer %s is %s" % (btype, branch, self.PrinterName, retcode))
-                if retcode :
-                    if (btype == "prehook") and (retcode == 255) : # -1
+                if retcode:
+                    if (btype == "prehook") and (retcode == 255): # -1
                         self.logInfo("Job %s cancelled by prehook %s" % (self.JobId, branch))
                         self.isCancelled = True
-                    elif (btype == "prehook") and (retcode == 254) : # -2
+                    elif (btype == "prehook") and (retcode == 254): # -2
                         self.logInfo("Job %s hook processing stopped by prehook %s" % (self.JobId, branch))
                         exitcode = CUPS_BACKEND_FAILED
                         break
-                    else :
+                    else:
                         self.logInfo("%s %s on printer %s didn't exit successfully." % (btypetitle, branch, self.PrinterName), "error")
                         exitcode = CUPS_BACKEND_FAILED
             self.logDebug("End serialized %ss" % btypetitle)
-        else :
+        else:
             self.logDebug("Begin forked %ss" % btypetitle)
             pids = {}
-            for branch in branchlist :
+            for branch in branchlist:
                 pid = os.fork()
-                if pid :
+                if pid:
                     pids[branch] = pid
-                else :
+                else:
                     os._exit(self.runCommand(branch, branches[branch]))
-            for (branch, pid) in list(pids.items()) :
+            for (branch, pid) in list(pids.items()):
                 retcode = os.waitpid(pid, 0)[1]
-                if os.WIFEXITED(retcode) :
+                if os.WIFEXITED(retcode):
                     retcode = os.WEXITSTATUS(retcode)
-                else :
+                else:
                     retcode = -1
                 self.logDebug("Exit code for %s %s (PID %s) on printer %s is %s" % (btype, branch, pid, self.PrinterName, retcode))
-                if retcode :
-                    if (btype == "prehook") and (retcode == 255) : # -1
+                if retcode:
+                    if (btype == "prehook") and (retcode == 255): # -1
                         self.logInfo("Job %s cancelled by prehook %s" % (self.JobId, branch))
                         self.isCancelled = True
-                    else :
+                    else:
                         self.logInfo("%s %s (PID %s) on printer %s didn't exit successfully." % (btypetitle, branch, pid, self.PrinterName), "error")
                         exitcode = CUPS_BACKEND_FAILED
             self.logDebug("End forked %ss" % btypetitle)
         return exitcode
 
-    def launchOriginalBackend(self) :
+    def launchOriginalBackend(self):
         """Launches the original backend, optionally retrying if needed."""
         number = 1
         delay = 0
         retry = self.getPrintQueueOption(self.PrinterName, "retry", ignore=1)
-        if retry is not None :
-            try :
+        if retry is not None:
+            try:
                 (number, delay) = [int(p) for p in retry.strip().split(",")]
-            except (ValueError, AttributeError, TypeError) :
+            except (ValueError, AttributeError, TypeError):
                 self.logInfo("Invalid value '%s' for the 'retry' directive for printer %s in %s." % (retry, self.PrinterName, self.conffile), "error")
                 number = 1
                 delay = 0
 
         loopcount = 1
-        while 1 :
+        while 1:
             retcode = self.runOriginalBackend()
-            if retcode == CUPS_BACKEND_OK :
+            if retcode == CUPS_BACKEND_OK:
                 break
-            else :
-                if (not number) or (loopcount < number) :
+            else:
+                if (not number) or (loopcount < number):
                     self.logInfo("The real backend produced an error, we will try again in %s seconds." % delay, "warn")
                     time.sleep(delay)
                     loopcount += 1
-                else :
+                else:
                     break
         return retcode
 
-    def runOriginalBackend(self) :
+    def runOriginalBackend(self):
         """Launches the original backend."""
         originalbackend = os.path.join(os.path.split(sys.argv[0])[0], self.RealBackend)
         arguments = [os.environ["DEVICE_URI"]] + sys.argv[1:]
         self.logDebug("Starting original backend %s with args %s" % (originalbackend, " ".join(['"%s"' % a for a in arguments])))
 
         pid = os.fork()
-        if pid == 0 :
-            if self.InputFile is None :
+        if pid == 0:
+            if self.InputFile is None:
                 f = open(self.DataFile, "rb")
                 os.dup2(f.fileno(), 0)
                 f.close()
-            else :
+            else:
                 arguments[6] = self.DataFile # in case a tea4cups filter was applied
-            try :
+            try:
                 os.execve(originalbackend, arguments, os.environ)
-            except OSError as msg :
+            except OSError as msg:
                 self.logDebug("execve() failed: %s" % msg)
             os._exit(-1)
         killed = 0
         status = -1
-        while status == -1 :
-            try :
+        while status == -1:
+            try:
                 status = os.waitpid(pid, 0)[1]
-            except OSError as xxx_todo_changeme :
+            except OSError as xxx_todo_changeme:
                 (err, msg) = xxx_todo_changeme.args
-                if err == 4 :
+                if err == 4:
                     killed = 1
-        if os.WIFEXITED(status) :
+        if os.WIFEXITED(status):
             status = os.WEXITSTATUS(status)
-            if status :
+            if status:
                 self.logInfo("CUPS backend %s returned %d." % (originalbackend,
                                                                status),
                              "error")
             return status
-        elif not killed :
+        elif not killed:
             self.logInfo("CUPS backend %s died abnormally." % originalbackend, \
                                                               "error")
             return -1
-        else :
+        else:
             return CUPS_BACKEND_FAILED
 
-if __name__ == "__main__" :
+if __name__ == "__main__":
     # This is a CUPS backend, we should act and die like a CUPS backend
     wrapper = CupsBackend()
-    if len(sys.argv) == 1 :
+    if len(sys.argv) == 1:
         print("\n".join(wrapper.discoverOtherBackends()))
         sys.exit(0)
-    elif len(sys.argv) not in (6, 7) :
+    elif len(sys.argv) not in (6, 7):
         sys.stderr.write("ERROR: %s job-id user title copies options [file]\n"\
                               % sys.argv[0])
         sys.exit(1)
-    else :
+    else:
         returncode = 1
-        try :
-            try :
+        try:
+            try:
                 wrapper.readConfig()
                 wrapper.initBackend()
                 wrapper.waitForLock()
                 wrapper.saveDatasAndCheckSum()
                 wrapper.exportAttributes()
                 returncode = wrapper.runBranches()
-            except SystemExit as e :
+            except SystemExit as e:
                 returncode = e.code
-            except KeyboardInterrupt :
+            except KeyboardInterrupt:
                 wrapper.logInfo("Job %s interrupted by the administrator !" % wrapper.JobId, "warn")
-            except :
+            except:
                 import traceback
                 lines = []
-                for errline in traceback.format_exception(*sys.exc_info()) :
+                for errline in traceback.format_exception(*sys.exc_info()):
                     lines.extend([l for l in errline.split("\n") if l])
-                errormessage = "ERROR: ".join(["%s (PID %s) : %s\n" % (wrapper.MyName, \
+                errormessage = "ERROR: ".join(["%s (PID %s): %s\n" % (wrapper.MyName, \
                                                               wrapper.pid, l) \
                             for l in (["ERROR: Tea4CUPS v%s" % __version__] + lines)])
                 sys.stderr.write(errormessage)
                 sys.stderr.flush()
                 returncode = 1
-        finally :
+        finally:
             wrapper.cleanUp()
         sys.exit(returncode)
