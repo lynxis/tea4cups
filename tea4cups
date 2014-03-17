@@ -524,37 +524,38 @@ class IPPRequest:
 
            Returns the message as a string of text.
         """
-        mybuffer = []
+        mybuffer = bytearray()
         if None not in (self.version, self.operation_id):
-            mybuffer.append(chr(self.version[0]) + chr(self.version[1]))
-            mybuffer.append(pack(">H", self.operation_id))
-            mybuffer.append(pack(">I", self.request_id or 1))
+            mybuffer.append(self.version[0])
+            mybuffer.append(self.version[1])
+            mybuffer.extend(pack(">H", self.operation_id))
+            mybuffer.extend(pack(">I", self.request_id or 1))
             for attrtype in self.attributes_types:
                 for attribute in getattr(self, "_%s_attributes" % attrtype):
                     if attribute:
-                        mybuffer.append(chr(self.tagvalues["%s-attributes-tag" % attrtype]))
+                        mybuffer.append(self.tagvalues["%s-attributes-tag" % attrtype])
                     for (attrname, value) in attribute:
                         nameprinted = 0
                         for (vtype, val) in value:
-                            mybuffer.append(chr(self.tagvalues[vtype]))
+                            mybuffer.append(self.tagvalues[vtype])
                             if not nameprinted:
-                                mybuffer.append(pack(">H", len(attrname)))
-                                mybuffer.append(attrname)
+                                mybuffer.extend(pack(">H", len(attrname)))
+                                mybuffer.extend(attrname.encode())
                                 nameprinted = 1
                             else:
-                                mybuffer.append(pack(">H", 0))
+                                mybuffer.extend(pack(">H", 0))
                             if vtype in ("integer", "enum"):
-                                mybuffer.append(pack(">H", 4))
-                                mybuffer.append(pack(">I", val))
+                                mybuffer.extend(pack(">H", 4))
+                                mybuffer.extend(pack(">I", val))
                             elif vtype == "boolean":
-                                mybuffer.append(pack(">H", 1))
-                                mybuffer.append(chr(val))
-                            else:
-                                mybuffer.append(pack(">H", len(val)))
+                                mybuffer.extend(pack(">H", 1))
                                 mybuffer.append(val)
-            mybuffer.append(chr(self.tagvalues["end-of-attributes-tag"]))
-        mybuffer.append(self.data)
-        return "".join(mybuffer)
+                            else:
+                                mybuffer.extend(pack(">H", len(val)))
+                                mybuffer.extend(val.encode())
+            mybuffer.append(self.tagvalues["end-of-attributes-tag"])
+        mybuffer.extend(self.data)
+        return mybuffer
 
     def parse(self):
         """Parses an IPP Request.
