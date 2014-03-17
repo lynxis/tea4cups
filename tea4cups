@@ -1249,7 +1249,8 @@ class CupsBackend:
         checksum = md5()
         outfile = open(self.DataFile, "wb")
         while 1:
-            data = infile.read(CHUNK)
+            # TODO: fix encoding from utf-8 to bytes - why we get here a 'str' type?
+            data = bytes(infile.read(CHUNK), 'utf-8')
             if not data:
                 break
             sizeread += len(data)
