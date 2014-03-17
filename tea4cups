@@ -555,7 +555,11 @@ class IPPRequest:
                                 mybuffer.append(val)
             mybuffer.append(chr(self.tagvalues["end-of-attributes-tag"]))
         mybuffer.append(self.data)
-        return mybuffer
+        self.logDebug(mybuffer)
+        ret = bytearray()
+        for ele in mybuffer:
+            ret.extend(ele)
+        return ret
 
     def parse(self):
         """Parses an IPP Request.
