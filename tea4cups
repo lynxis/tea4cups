@@ -1181,7 +1181,7 @@ class CupsBackend:
         ippmessagefile = os.path.join(requestroot, ippmessagefile)
         ippmessage = {}
         try:
-            ippdatafile = open(ippmessagefile)
+            ippdatafile = open(ippmessagefile, mode='rb')
         except:
             self.logInfo("Unable to open IPP message file %s" % ippmessagefile, "warn")
         else:
