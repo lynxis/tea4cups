@@ -1182,7 +1182,7 @@ class CupsBackend:
         ippmessagefile = os.path.join(requestroot, ippmessagefile)
         ippmessage = {}
         try:
-            ippdatafile = open(ippmessagefile)
+            ippdatafile = open(ippmessagefile, mode='rb')
         except:
             self.logInfo("Unable to open IPP message file %s" % ippmessagefile, "warn")
         else:
@@ -1247,7 +1247,8 @@ class CupsBackend:
         checksum = md5()
         outfile = open(self.DataFile, "wb")
         while 1:
-            data = infile.read(CHUNK)
+            # TODO: fix encoding from utf-8 to bytes - why we get here a 'str' type?
+            data = bytes(infile.read(CHUNK), 'utf-8')
             if not data:
                 break
             sizeread += len(data)
