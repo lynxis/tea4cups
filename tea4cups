@@ -77,14 +77,14 @@ import pwd
 import errno
 import random
 import md5
-import cStringIO
+import io
 import shlex
 import tempfile
-import ConfigParser
+import configparser
 import signal
 import socket
 import fcntl
-import urllib2
+import urllib.request, urllib.error, urllib.parse
 from struct import pack, unpack
 
 __version__ = "3.13alpha_unofficial"
@@ -380,7 +380,7 @@ class FakeAttribute :
                     answer.extend(attrvalue)
         if answer :
             return answer
-        raise KeyError, key
+        raise KeyError(key)
 
 class IPPRequest :
     """A class for IPP requests."""
@@ -471,7 +471,7 @@ class IPPRequest :
         if name in self.attributes_types :
             return FakeAttribute(self, name)
         else :
-            raise AttributeError, name
+            raise AttributeError(name)
 
     def __str__(self) :
         """Returns the parsed IPP message in a readable form."""
@@ -587,7 +587,7 @@ class IPPRequest :
                 if tag == oldtag :
                     self._curattributes.append([])
         except IndexError :
-            raise IPPError, "Unexpected end of IPP message."
+            raise IPPError("Unexpected end of IPP message.")
 
         self.data = self._data[self.position+1:]
         self.parsed = True
@@ -713,23 +713,23 @@ class CUPS :
         """Sends a request to the CUPS server.
            returns a new IPPRequest object, containing the parsed answer.
         """
-        connexion = urllib2.Request(url=url or self.url, \
+        connexion = urllib.request.Request(url=url or self.url, \
                              data=req.dump())
         connexion.add_header("Content-Type", "application/ipp")
         if self.username :
-            pwmanager = urllib2.HTTPPasswordMgrWithDefaultRealm()
+            pwmanager = urllib.request.HTTPPasswordMgrWithDefaultRealm()
             pwmanager.add_password(None, \
                                    "%s%s" % (connexion.get_host(), connexion.get_selector()), \
                                    self.username, \
                                    self.password or "")
-            authhandler = urllib2.HTTPBasicAuthHandler(pwmanager)
-            opener = urllib2.build_opener(authhandler)
-            urllib2.install_opener(opener)
+            authhandler = urllib.request.HTTPBasicAuthHandler(pwmanager)
+            opener = urllib.request.build_opener(authhandler)
+            urllib.request.install_opener(opener)
         self.lastError = None
         self.lastErrorMessage = None
         try :
-            response = urllib2.urlopen(connexion)
-        except (urllib2.URLError, urllib2.HTTPError, socket.error), error :
+            response = urllib.request.urlopen(connexion)
+        except (urllib.error.URLError, urllib.error.HTTPError, socket.error) as error :
             self.lastError = error
             self.lastErrorMessage = str(error)
             return None
@@ -768,18 +768,18 @@ class CUPS :
     def getDevices(self) :
         """Returns a list of devices as (deviceclass, deviceinfo, devicemakeandmodel, deviceuri) tuples."""
         answer = self.doRequest(self.newRequest(CUPS_GET_DEVICES))
-        return zip([d[1] for d in answer.printer["device-class"]], \
+        return list(zip([d[1] for d in answer.printer["device-class"]], \
                    [d[1] for d in answer.printer["device-info"]], \
                    [d[1] for d in answer.printer["device-make-and-model"]], \
-                   [d[1] for d in answer.printer["device-uri"]])
+                   [d[1] for d in answer.printer["device-uri"]]))
 
     def getPPDs(self) :
         """Returns a list of PPDs as (ppdnaturallanguage, ppdmake, ppdmakeandmodel, ppdname) tuples."""
         answer = self.doRequest(self.newRequest(CUPS_GET_PPDS))
-        return zip([d[1] for d in answer.printer["ppd-natural-language"]], \
+        return list(zip([d[1] for d in answer.printer["ppd-natural-language"]], \
                    [d[1] for d in answer.printer["ppd-make"]], \
                    [d[1] for d in answer.printer["ppd-make-and-model"]], \
-                   [d[1] for d in answer.printer["ppd-name"]])
+                   [d[1] for d in answer.printer["ppd-name"]]))
 
     def createSubscription(self, uri, events=["all"],
                                       userdata=None,
@@ -851,7 +851,7 @@ class FakeConfig :
     """Fakes a configuration file parser."""
     def get(self, section, option, raw=0) :
         """Fakes the retrieval of an option."""
-        raise ConfigError, "Invalid configuration file : no option %s in section [%s]" % (option, section)
+        raise ConfigError("Invalid configuration file : no option %s in section [%s]" % (option, section))
 
 def isTrue(option) :
     """Returns 1 if option is set to true, else 0."""
@@ -872,7 +872,7 @@ def getCupsConfigDirectives(directives=[]) :
     try :
         conffile = open(cupsdconf, "r")
     except IOError :
-        raise TeeError, "Unable to open %s" % cupsdconf
+        raise TeeError("Unable to open %s" % cupsdconf)
     else :
         for line in conffile.readlines() :
             linecopy = line.strip().lower()
@@ -962,7 +962,7 @@ class CupsBackend :
         confdir = os.environ.get("CUPS_SERVERROOT", ".")
         self.conffile = os.path.join(confdir, "%s.conf" % self.myname)
         if os.path.isfile(self.conffile) :
-            self.config = ConfigParser.ConfigParser()
+            self.config = configparser.ConfigParser()
             self.config.read([self.conffile])
             self.debug = isTrue(self.getGlobalOption("debug", ignore=1))
         else :
@@ -986,31 +986,31 @@ class CupsBackend :
         """Returns an option from the global section, or raises a ConfigError if ignore is not set, else returns None."""
         try :
             return self.config.get("global", option, raw=1)
-        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError) :
+        except (configparser.NoSectionError, configparser.NoOptionError) :
             if not ignore :
-                raise ConfigError, "Option %s not found in section global of %s" % (option, self.conffile)
+                raise ConfigError("Option %s not found in section global of %s" % (option, self.conffile))
 
     def getPrintQueueOption(self, printqueuename, option, ignore=0) :
         """Returns an option from the printer section, or the global section, or raises a ConfigError."""
         globaloption = self.getGlobalOption(option, ignore=1)
         try :
             return self.config.get(printqueuename, option, raw=1)
-        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError) :
+        except (configparser.NoSectionError, configparser.NoOptionError) :
             if globaloption is not None :
                 return globaloption
             elif not ignore :
-                raise ConfigError, "Option %s not found in section [%s] of %s" % (option, printqueuename, self.conffile)
+                raise ConfigError("Option %s not found in section [%s] of %s" % (option, printqueuename, self.conffile))
 
     def enumBranches(self, printqueuename, branchtype="tee") :
         """Returns the list of branchtypes branches for a particular section's."""
         branchbasename = "%s_" % branchtype.lower()
         try :
             globalbranches = [ (k, self.config.get("global", k)) for k in self.config.options("global") if k.startswith(branchbasename) ]
-        except ConfigParser.NoSectionError, msg :
-            raise ConfigError, "Invalid configuration file : %s" % msg
+        except configparser.NoSectionError as msg :
+            raise ConfigError("Invalid configuration file : %s" % msg)
         try :
             sectionbranches = [ (k, self.config.get(printqueuename, k)) for k in self.config.options(printqueuename) if k.startswith(branchbasename) ]
-        except ConfigParser.NoSectionError, msg :
+        except configparser.NoSectionError as msg :
             self.logInfo("No section for print queue %s : %s" % (printqueuename, msg))
             sectionbranches = []
         branches = {}
@@ -1048,7 +1048,7 @@ class CupsBackend :
             try :
                 # see if the pid contained in the lock file is still running
                 os.kill(pid, 0)
-            except OSError, error :
+            except OSError as error :
                 if error.errno != errno.EPERM :
                     # process doesn't exist anymore
                     os.remove(lockfilename)
@@ -1073,7 +1073,7 @@ class CupsBackend :
                         # each line is of the form :
                         # 'xxxx xxxx "xxxx xxx" "xxxx xxx"'
                         # so we have to decompose it carefully
-                        fdevice = cStringIO.StringIO(d)
+                        fdevice = io.StringIO(d)
                         tokenizer = shlex.shlex(fdevice)
                         tokenizer.wordchars = tokenizer.wordchars + \
                                                         r".:,?!~/\_$*-+={}[]()#"
@@ -1135,7 +1135,7 @@ class CupsBackend :
                 self.logDebug("Not attached to an existing print queue.")
                 backend = ""
             else :
-                raise TeeError, "Invalid DEVICE_URI : %s\n" % device_uri
+                raise TeeError("Invalid DEVICE_URI : %s\n" % device_uri)
 
         self.RealBackend = backend
         self.DeviceURI = device_uri
@@ -1189,7 +1189,7 @@ class CupsBackend :
             try :
                 ippmessage = IPPRequest(ippdatafile.read())
                 ippmessage.parse()
-            except IPPError, msg :
+            except IPPError as msg :
                 self.logInfo("Error while parsing %s : %s" % (ippmessagefile, msg), "warn")
             else :
                 self.logDebug("Parsing of IPP message file %s ends." % ippmessagefile)
@@ -1280,7 +1280,7 @@ class CupsBackend :
             and os.path.exists(self.DataFile) :
             try :
                 os.remove(self.DataFile)
-            except OSError, msg :
+            except OSError as msg :
                 self.logInfo("Problem when removing %s : %s" % (self.DataFile, msg), "error")
 
         if self.LockFile is not None :
@@ -1300,10 +1300,10 @@ class CupsBackend :
         serialize = isTrue(self.getPrintQueueOption(self.PrinterName, "serialize", ignore=1))
         self.pipes = { 0: (0, 1) }
         branches = self.enumBranches(self.PrinterName, "prehook")
-        for b in branches.keys() :
+        for b in list(branches.keys()) :
             self.pipes[b.split("_", 1)[1]] = os.pipe()
         retcode = self.runCommands("prehook", branches, serialize)
-        for p in [ (k, v) for (k, v) in self.pipes.items() if k != 0 ] :
+        for p in [ (k, v) for (k, v) in list(self.pipes.items()) if k != 0 ] :
             os.close(p[1][1])
         if self.isCancelled :
             retcode = CUPS_BACKEND_CANCEL # Job cancelled, for CUPS.
@@ -1322,7 +1322,7 @@ class CupsBackend :
             if self.runCommands("posthook", branches, serialize) :
                 self.logInfo("An error occured during the execution of posthooks.", "warn")
 
-        for p in [ (k, v) for (k, v) in self.pipes.items() if k != 0 ] :
+        for p in [ (k, v) for (k, v) in list(self.pipes.items()) if k != 0 ] :
             os.close(p[1][0])
         if retcode == CUPS_BACKEND_OK :
             self.logInfo("OK")
@@ -1343,7 +1343,7 @@ class CupsBackend :
                 os.close(stdout)
             try :
                 os.execl("/bin/sh", "sh", "-c", cmd)
-            except OSError, msg :
+            except OSError as msg :
                 self.logDebug("execl() failed: %s" % msg)
             os._exit(-1)
         status = os.waitpid(pid, 0)[1]
@@ -1356,7 +1356,7 @@ class CupsBackend :
         # Code contributed by Peter Stuge on June 7th 2005
         self.logDebug("Launching %s : %s" % (branch, command))
         btype, bname = branch.split("_", 1)
-        if bname not in self.pipes.keys() :
+        if bname not in list(self.pipes.keys()) :
             bname = 0
         if btype == "prehook" :
             return self.stdioRedirSystem(command, 0, self.pipes[bname][1])
@@ -1368,7 +1368,7 @@ class CupsBackend :
         exitcode = CUPS_BACKEND_OK
         btype = btype.lower()
         btypetitle = btype.title()
-        branchlist = branches.keys()
+        branchlist = list(branches.keys())
         branchlist.sort()
         if serialize :
             self.logDebug("Begin serialized %ss" % btypetitle)
@@ -1396,7 +1396,7 @@ class CupsBackend :
                     pids[branch] = pid
                 else :
                     os._exit(self.runCommand(branch, branches[branch]))
-            for (branch, pid) in pids.items() :
+            for (branch, pid) in list(pids.items()) :
                 retcode = os.waitpid(pid, 0)[1]
                 if os.WIFEXITED(retcode) :
                     retcode = os.WEXITSTATUS(retcode)
@@ -1456,7 +1456,7 @@ class CupsBackend :
                 arguments[6] = self.DataFile # in case a tea4cups filter was applied
             try :
                 os.execve(originalbackend, arguments, os.environ)
-            except OSError, msg :
+            except OSError as msg :
                 self.logDebug("execve() failed: %s" % msg)
             os._exit(-1)
         killed = 0
@@ -1464,7 +1464,8 @@ class CupsBackend :
         while status == -1 :
             try :
                 status = os.waitpid(pid, 0)[1]
-            except OSError, (err, msg) :
+            except OSError as xxx_todo_changeme :
+                (err, msg) = xxx_todo_changeme.args
                 if err == 4 :
                     killed = 1
         if os.WIFEXITED(status) :
@@ -1485,7 +1486,7 @@ if __name__ == "__main__" :
     # This is a CUPS backend, we should act and die like a CUPS backend
     wrapper = CupsBackend()
     if len(sys.argv) == 1 :
-        print "\n".join(wrapper.discoverOtherBackends())
+        print("\n".join(wrapper.discoverOtherBackends()))
         sys.exit(0)
     elif len(sys.argv) not in (6, 7) :
         sys.stderr.write("ERROR: %s job-id user title copies options [file]\n"\
@@ -1501,7 +1502,7 @@ if __name__ == "__main__" :
                 wrapper.saveDatasAndCheckSum()
                 wrapper.exportAttributes()
                 returncode = wrapper.runBranches()
-            except SystemExit, e :
+            except SystemExit as e :
                 returncode = e.code
             except KeyboardInterrupt :
                 wrapper.logInfo("Job %s interrupted by the administrator !" % wrapper.JobId, "warn")
